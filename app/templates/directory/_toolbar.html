@@ -1,0 +1,21 @@
+<div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+  <div>
+    <h2 class="h3 mb-1">{{ title }}</h2>
+    <p class="text-secondary mb-0">Odczyt bezpośrednio z Samba Active Directory przez LDAP.</p>
+  </div>
+  <form class="d-flex gap-2" method="get">
+    <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Szukaj..." aria-label="Szukaj">
+    <button class="btn btn-primary" type="submit">Szukaj</button>
+  </form>
+</div>
+<form method="post" action="{{ url_for('directory.test_connection') }}" class="mb-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="btn btn-outline-light btn-sm" type="submit">Testuj połączenie LDAP</button>
+</form>
+{% if error %}
+<div class="alert alert-danger">
+  <strong>LDAP:</strong> {{ error }}
+  <hr>
+  <span class="small">Sprawdź wartości LDAP_URI, LDAP_BIND_DN, LDAP_BIND_PASSWORD i LDAP_BASE_DN w pliku .env.</span>
+</div>
+{% endif %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Użytkownicy AD — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+{% set title = "Użytkownicy Active Directory" %}
+{% include "directory/_toolbar.html" %}
+{% if can_write and write_configured %}
+<div class="mb-3">
+  <a class="btn btn-primary" href="{{ url_for('directory.new_user') }}">+ Nowy użytkownik</a>
+</div>
+{% endif %}
+{% if can_write and write_configured %}
+<form method="post" action="{{ url_for('directory.bulk_user_action') }}">
+  {{ bulk_form.hidden_tag() }}
+  <div class="card border-0 shadow-sm mb-3"><div class="card-body d-flex flex-wrap gap-2 align-items-end">
+    <div>{{ bulk_form.action.label(class="form-label") }}{{ bulk_form.action(class="form-select") }}</div>
+    <div>{{ bulk_form.submit(class="btn btn-primary", onclick="return confirm('Wykonać operację dla zaznaczonych kont?')") }}</div>
+    <div class="small text-secondary">Maksymalnie 200 kont w jednej operacji.</div>
+  </div></div>
+{% endif %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead><tr>{% if can_write and write_configured %}<th><input class="form-check-input" type="checkbox" onclick="document.querySelectorAll('[name=usernames]').forEach(el => el.checked = this.checked)"></th>{% endif %}<th>Login</th><th>Imię i nazwisko</th><th>E-mail</th><th>Stan</th><th>DN</th></tr></thead>
+        <tbody>
+        {% for item in records %}
+          <tr>
+            {% if can_write and write_configured %}<td><input class="form-check-input" type="checkbox" name="usernames" value="{{ first_value(item, 'sAMAccountName') }}"></td>{% endif %}
+            <td class="fw-semibold"><a href="{{ url_for('directory.user_details', username=first_value(item, 'sAMAccountName')) }}">{{ first_value(item, 'sAMAccountName') }}</a></td>
+            <td>{{ first_value(item, 'displayName') }}</td>
+            <td>{{ first_value(item, 'mail') }}</td>
+            <td>{% if account_enabled(item) %}<span class="badge text-bg-success">Aktywne</span>{% else %}<span class="badge text-bg-secondary">Wyłączone</span>{% endif %}</td>
+            <td class="small text-secondary text-break">{{ item.dn }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="{{ 6 if can_write and write_configured else 5 }}" class="text-center text-secondary py-5">Brak wyników.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% if can_write and write_configured %}</form>{% endif %}
+{% endblock %}

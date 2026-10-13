@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ computer_name(item) }} — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <a href="{{ url_for('directory.computers') }}" class="text-decoration-none">← Komputery AD</a>
+    <h2 class="h3 mt-2 mb-1">{{ computer_name(item) }}</h2>
+    <div class="text-secondary">{{ first_value(item, 'dNSHostName') }}</div>
+  </div>
+  <span class="badge text-bg-primary fs-6">Konto komputera AD</span>
+</div>
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card border-0 shadow-sm h-100"><div class="card-body">
+      <h3 class="h5 mb-3">Informacje Active Directory</h3>
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Nazwa</dt><dd class="col-sm-8">{{ computer_name(item) }}</dd>
+        <dt class="col-sm-4">FQDN</dt><dd class="col-sm-8">{{ first_value(item, 'dNSHostName') }}</dd>
+        <dt class="col-sm-4">System</dt><dd class="col-sm-8">{{ first_value(item, 'operatingSystem') }}</dd>
+        <dt class="col-sm-4">Wersja systemu</dt><dd class="col-sm-8">{{ first_value(item, 'operatingSystemVersion') }}</dd>
+        <dt class="col-sm-4">OU</dt><dd class="col-sm-8">{{ dn_organizational_path(item.dn) }}</dd>
+        <dt class="col-sm-4">Opis</dt><dd class="col-sm-8">{{ first_value(item, 'description') }}</dd>
+        <dt class="col-sm-4">Utworzono</dt><dd class="col-sm-8">{{ format_ad_datetime(item.get('whenCreated')) }}</dd>
+        <dt class="col-sm-4">Ostatnie logowanie</dt><dd class="col-sm-8">{{ format_ad_datetime(item.get('lastLogonTimestamp')) }}</dd>
+        <dt class="col-sm-4">SID</dt><dd class="col-sm-8 text-break small">{{ sid_value(item.get('objectSid')) }}</dd>
+        <dt class="col-sm-4">DN</dt><dd class="col-sm-8 text-break small">{{ item.dn }}</dd>
+      </dl>
+    </div></div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card border-0 shadow-sm mb-4"><div class="card-body">
+      <h3 class="h5 mb-3">Członkostwo w grupach</h3>
+      <div class="list-group list-group-flush">
+      {% for group_dn in groups %}<div class="list-group-item px-0 bg-transparent">{{ dn_common_name(group_dn) }}<div class="small text-secondary text-break">{{ group_dn }}</div></div>
+      {% else %}<div class="text-secondary">Brak przypisanych grup.</div>{% endfor %}
+      </div>
+    </div></div>
+    <div class="alert alert-info mb-0"><strong>Dane agenta Windows</strong><br>Procesor, RAM, dyski, IP i status online pojawią się tutaj po wdrożeniu agenta.</div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
+{% block content %}
+<section class="hero rounded-4 p-4 p-lg-5 mb-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-8">
+      <span class="badge text-bg-success mb-3">{{ 'Dane demonstracyjne — domena odłączona' if config.PREVIEW_DEMO_DATA else 'Samba AD / LDAP — odczyt aktywny' }}</span>
+      <h2 class="display-6 fw-semibold">Centrum administracyjne SP2</h2>
+      <p class="lead text-secondary mb-0">{{ 'Ćwicz przepływ administracyjny na fikcyjnych kontach i komputerach.' if config.PREVIEW_DEMO_DATA else 'Dashboard pokazuje bieżące dane katalogowe. Kliknij kafelek, aby przejść do listy obiektów.' }}</p>
+    </div>
+    <div class="col-lg-4 text-lg-end">
+      <form method="post" action="{{ url_for('directory.test_connection') }}" class="d-inline-block">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-light" type="submit">{{ 'Sprawdź tryb demo' if config.PREVIEW_DEMO_DATA else 'Test połączenia LDAP' }}</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+{% if ldap_error %}
+<div class="alert alert-danger" role="alert">
+  <strong>LDAP niedostępny:</strong> {{ ldap_error }}
+</div>
+{% elif checked_at %}
+<p class="small text-secondary">Dane odświeżono: {{ checked_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</p>
+{% endif %}
+
+<div class="row g-4">
+  {% for card in cards %}
+  <div class="col-12 col-md-6 col-xl-3">
+    {% if card.endpoint %}<a class="text-decoration-none text-reset" href="{{ url_for(card.endpoint) }}">{% endif %}
+    <article class="card stat-card h-100 border-0 shadow-sm">
+      <div class="card-body p-4">
+        <p class="text-uppercase small text-secondary fw-semibold mb-2">{{ card.label }}</p>
+        <p class="display-5 fw-bold mb-2">{{ card.value }}</p>
+        <p class="text-secondary mb-0">{{ card.description }}</p>
+      </div>
+    </article>
+    {% if card.endpoint %}</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+<section class="mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-3"><div><h3 class="h4 mb-1">Agenci Windows i sale</h3><p class="text-secondary mb-0">Bieżący stan zarządzanych komputerów.</p></div></div>
+  <div class="row g-4">
+    {% for card in agent_cards %}
+    <div class="col-12 col-md-6 col-xl-3">
+      <a class="text-decoration-none text-reset" href="{{ url_for(card.endpoint) }}">
+        <article class="card stat-card h-100 border-0 shadow-sm"><div class="card-body p-4"><p class="text-uppercase small text-secondary fw-semibold mb-2">{{ card.label }}</p><p class="display-5 fw-bold mb-2">{{ card.value }}</p><p class="text-secondary mb-0">{{ card.description }}</p></div></article>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% if low_disks %}
+<section class="mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="h4 mb-1">Mało miejsca na dysku</h3>
+      <p class="text-secondary mb-0">Komputery z lokalnym dyskiem powyżej progu zajętości.</p>
+    </div>
+  </div>
+  <article class="card stat-card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Komputer</th><th>Sala</th><th>Dysk</th><th>Zajętość</th><th>Wolne / Razem</th></tr></thead>
+          <tbody>
+          {% for item in low_disks %}
+            <tr>
+              <td class="fw-semibold"><a href="{{ url_for('agents.details', agent_id=item.agent_id) }}">{{ item.hostname }}</a></td>
+              <td>{{ item.room or "—" }}</td>
+              <td>{{ item.mount }}</td>
+              <td><span class="badge {{ 'text-bg-danger' if item.percent_used >= 95 else 'text-bg-warning' }}">{{ '%.1f%%'|format(item.percent_used) }}</span></td>
+              <td>{{ '%.1f'|format(item.free_bytes / 1073741824) }} GB / {{ '%.1f'|format(item.total_bytes / 1073741824) }} GB</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+</section>
+{% endif %}
+
+{% if diagnostic_summary or diagnostics_error %}
+<section class="mt-5">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h3 class="h4 mb-1">Stan systemu</h3>
+      <p class="text-secondary mb-0">
+        Skrócone podsumowanie wspólnej diagnostyki SP2 ADMIN.
+      </p>
+    </div>
+    <a class="btn btn-outline-light"
+       href="{{ url_for('dashboard.diagnostics') }}">
+      Szczegóły
+    </a>
+  </div>
+  <article class="card stat-card border-0 shadow-sm">
+    <div class="card-body p-4">
+      {% if diagnostics_error %}
+      <span class="badge text-bg-danger mb-3">WYMAGA UWAGI</span>
+      <p class="mb-0">
+        Diagnostyka nie została ukończona: {{ diagnostics_error }}
+      </p>
+      {% else %}
+      {% set warning_count = diagnostic_summary.warnings %}
+      <span class="badge {{ 'text-bg-warning' if warning_count else 'text-bg-success' }} mb-3">
+        {{ 'OSTRZEŻENIE' if warning_count else 'SYSTEM OK' }}
+      </span>
+      <p class="mb-1">Kontrole poprawne: {{ diagnostic_summary.ok }}</p>
+      <p class="mb-0 text-secondary">
+        Ostrzeżenia: {{ warning_count }}
+      </p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endif %}
+{% endblock %}

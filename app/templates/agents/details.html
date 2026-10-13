@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}{{ agent.hostname }} — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div><a href="{{ url_for('agents.index') }}" class="text-decoration-none">← Komputery</a><h2 class="mt-2 mb-1">{{ agent.hostname }}</h2><p class="text-secondary mb-0">{{ agent.fqdn or 'Brak FQDN' }}</p></div>
+  <div class="d-flex align-items-center gap-2">
+    {% if can_manage %}
+    <a class="btn btn-outline-primary" href="{{ url_for('agents.remote_desktop_file', agent_id=agent.id) }}" title="Pobiera plik .rdp — bez zapisanych poświadczeń, klient RDP poprosi o Twoje dane domenowe">
+      Pulpit zdalny (.rdp)
+    </a>
+    {% endif %}
+    {% if agent.is_online(threshold) %}<span class="badge text-bg-success fs-6">Online</span>{% else %}<span class="badge text-bg-danger fs-6">Offline</span>{% endif %}
+  </div>
+</div>
+
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary small">Użycie CPU</div>
+      <div class="fs-3 fw-semibold">{{ '%.1f%%'|format(agent.cpu_percent) if agent.cpu_percent is not none else '—' }}</div>
+      {% if agent.cpu_percent is not none %}
+      <div class="progress mt-2" role="progressbar" aria-valuenow="{{ agent.cpu_percent }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar{% if agent.cpu_percent >= 90 %} bg-danger{% elif agent.cpu_percent >= 70 %} bg-warning{% endif %}" style="width: {{ agent.cpu_percent }}%"></div>
+      </div>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary small">Użycie pamięci</div>
+      <div class="fs-3 fw-semibold">{{ '%.1f%%'|format(agent.memory_percent) if agent.memory_percent is not none else '—' }}</div>
+      {% if agent.memory_percent is not none %}
+      <div class="progress mt-2" role="progressbar" aria-valuenow="{{ agent.memory_percent }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar{% if agent.memory_percent >= 90 %} bg-danger{% elif agent.memory_percent >= 75 %} bg-warning{% endif %}" style="width: {{ agent.memory_percent }}%"></div>
+      </div>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary small">Czas pracy</div>
+      {% if agent.uptime_seconds is not none %}
+      <div class="fs-3 fw-semibold">{{ agent.uptime_seconds // 86400 }} d</div>
+      <div class="small text-secondary">{{ (agent.uptime_seconds % 86400) // 3600 }} godz. {{ (agent.uptime_seconds % 3600) // 60 }} min</div>
+      {% else %}<div class="fs-3 fw-semibold">—</div>{% endif %}
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-secondary small">Ostatni pomiar</div>
+      <div class="fw-semibold mt-2">
+        {{ agent.metrics_collected_at.strftime('%Y-%m-%d %H:%M:%S') if agent.metrics_collected_at else '—' }}
+      </div>
+      <div class="small text-secondary mt-1">Agent {{ agent.agent_version or '—' }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-6"><div class="card h-100"><div class="card-header">System i sprzęt</div><div class="card-body"><dl class="row mb-0">
+    <dt class="col-sm-4">System</dt><dd class="col-sm-8">{{ agent.os_name or '—' }} {{ agent.os_version or '' }}</dd>
+    <dt class="col-sm-4">Producent</dt><dd class="col-sm-8">{{ agent.manufacturer or '—' }}</dd>
+    <dt class="col-sm-4">Model</dt><dd class="col-sm-8">{{ agent.model or '—' }}</dd>
+    <dt class="col-sm-4">Numer seryjny</dt><dd class="col-sm-8">{{ agent.serial_number or '—' }}</dd>
+    <dt class="col-sm-4">CPU</dt><dd class="col-sm-8">{{ agent.cpu or '—' }}</dd>
+    <dt class="col-sm-4">RAM</dt><dd class="col-sm-8">{{ '%.1f GB'|format(agent.ram_bytes / 1073741824) if agent.ram_bytes else '—' }}</dd>
+  </dl></div></div></div>
+  <div class="col-xl-6"><div class="card h-100"><div class="card-header">Sieć i domena</div><div class="card-body"><dl class="row mb-0">
+    <dt class="col-sm-4">Sala</dt><dd class="col-sm-8">{{ agent.room or '—' }}</dd>
+    <dt class="col-sm-4">OU</dt><dd class="col-sm-8 text-break">{{ agent.ou or '—' }}</dd>
+    <dt class="col-sm-4">Użytkownik</dt><dd class="col-sm-8">{{ agent.username or '—' }}</dd>
+    <dt class="col-sm-4">Adresy IP</dt><dd class="col-sm-8">{{ agent.ip_addresses|join(', ') if agent.ip_addresses else '—' }}</dd>
+    <dt class="col-sm-4">Adresy MAC</dt><dd class="col-sm-8">{{ agent.mac_addresses|join(', ') if agent.mac_addresses else '—' }}</dd>
+    <dt class="col-sm-4">Agent</dt><dd class="col-sm-8">{{ agent.agent_version or '—' }}</dd>
+  </dl></div></div></div>
+
+  {% if shadow_commands %}
+  <div class="col-12"><div class="card"><div class="card-header">Podgląd na żywo (RDP Shadow)</div><div class="card-body">
+    <p class="text-secondary small mb-3">
+      Skopiuj i uruchom komendę we WŁASNYM terminalu (SP2 ADMIN działa na Ubuntu i nie może
+      jej wykonać za Ciebie). Wymaga wcześniej ustawionej Zasady Grupy zezwalającej na zdalne
+      sterowanie sesją bez potwierdzenia użytkownika — w przeciwnym razie Windows i tak
+      wyświetli monit o zgodę na ekranie komputera. Zalogowany: <strong>{{ agent.console_session.username }}</strong>.
+    </p>
+    <label class="form-label">Tylko podgląd (bez sterowania)</label>
+    <input class="form-control mb-3 font-monospace" type="text" readonly
+           onclick="this.select()" value="{{ shadow_commands.view }}">
+    <label class="form-label">Podgląd z pełną kontrolą (pomoc)</label>
+    <input class="form-control font-monospace" type="text" readonly
+           onclick="this.select()" value="{{ shadow_commands.control }}">
+  </div></div></div>
+  {% endif %}
+
+  {% if can_manage %}
+  <div class="col-12"><div class="card"><div class="card-header">Zdalne polecenia</div><div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-4">
+      {% for action, label in [('inventory','Odśwież inwentaryzację'),('gpupdate','GPUpdate /force'),('hostname','Hostname'),('ipconfig','IPConfig'),('systeminfo','SystemInfo'),('list_services','Usługi'),('list_processes','Procesy')] %}
+      <form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ action }}">
+        <button class="btn btn-outline-primary" type="submit">{{ label }}</button>
+      </form>
+      {% endfor %}
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-6"><form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}" class="border rounded p-3 h-100">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="message">
+        <label class="form-label fw-semibold">Komunikat na ekran</label><textarea class="form-control mb-2" name="message" maxlength="500" required placeholder="Treść komunikatu"></textarea><button class="btn btn-primary">Wyślij komunikat</button>
+      </form></div>
+      <div class="col-lg-6"><div class="border rounded p-3 h-100"><div class="fw-semibold mb-2">Zasilanie</div><div class="d-flex flex-wrap gap-2">
+        {% for action, label, klass in [('restart','Uruchom ponownie','warning'),('shutdown','Wyłącz komputer','danger')] %}
+        <form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}" onsubmit="return confirm('Czy na pewno wykonać tę operację?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="confirm" value="yes"><button class="btn btn-{{ klass }}">{{ label }}</button>
+        </form>{% endfor %}
+      </div></div></div>
+      <div class="col-12"><form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}" class="border rounded p-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="install_software_interactive">
+        <input type="hidden" name="confirm" value="yes">
+        <label class="form-label fw-semibold">Instalacja z oknem — bez hasła administratora</label>
+        <p class="small text-secondary">Użytkownik przy komputerze klika „Dalej”. Wybieraj tylko zaufane instalatory: okno ma uprawnienia SYSTEM. Zlecenie wygasa po 5 minutach. Tryb przeznaczony dla lokalnego pulpitu, nie sesji RDP.</p>
+        <div class="input-group"><select class="form-select" name="package_id" required>
+          <option value="">Wybierz zatwierdzony instalator</option>
+          {% for package in software_packages if package.purpose != 'agent' %}
+          <option value="{{ package.id }}" {% if not package.enabled or not package.file_exists %}disabled{% endif %}>{{ package.name }} {{ package.version }}</option>
+          {% endfor %}
+        </select><button class="btn btn-warning" {% if not agent.console_session or not agent.console_session.get('interactive_ready') %}disabled{% endif %}>Otwórz instalator użytkownikowi</button></div>
+        {% if not agent.console_session or not agent.console_session.get('interactive_ready') %}<div class="small text-secondary mt-2">Brak gotowej usługi lub zalogowanego użytkownika. Wdróż paczkę na tym komputerze i poczekaj na kontakt agenta.</div>{% endif %}
+      </form></div>
+      <div class="col-12"><form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}" class="border rounded p-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="install_software"><input type="hidden" name="confirm" value="yes">
+        <label class="form-label fw-semibold">Instalacja oprogramowania</label>
+        {% if catalog_error %}<div class="alert alert-danger py-2">{{ catalog_error }}</div>{% endif %}
+        <div class="input-group"><select class="form-select" name="package_id" required><option value="">Wybierz pakiet</option>{% for package in software_packages %}<option value="{{ package.id }}" {% if not package.enabled or not package.file_exists %}disabled{% endif %}>{{ package.name }} {{ package.version }}{% if not package.file_exists %} — brak pliku{% endif %}</option>{% endfor %}</select><button class="btn btn-success" onclick="return confirm('Zlecić instalację wybranego pakietu?')">Zainstaluj</button></div>
+      </form></div>
+      <div class="col-12"><form method="post" action="{{ url_for('agents.create_command', agent_id=agent.id) }}" class="border rounded p-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="self_update"><input type="hidden" name="confirm" value="yes">
+        <label class="form-label fw-semibold">Aktualizacja agenta</label>
+        <p class="text-secondary small mb-2">
+          Wybierz wgrany plik SP2Agent.exe z katalogu pakietów — agent bezpiecznie
+          podmieni się i zrestartuje, bez utraty rejestracji ani tokenu urządzenia.
+        </p>
+        {% if catalog_error %}<div class="alert alert-danger py-2">{{ catalog_error }}</div>{% endif %}
+        <div class="input-group"><select class="form-select" name="package_id" required><option value="">Wybierz pakiet (nowy SP2Agent.exe)</option>{% for package in software_packages %}<option value="{{ package.id }}" {% if not package.enabled or not package.file_exists %}disabled{% endif %}>{{ package.name }} {{ package.version }}{% if not package.file_exists %} — brak pliku{% endif %}</option>{% endfor %}</select><button class="btn btn-outline-success" onclick="return confirm('Zaktualizować agenta na tym komputerze? Agent zrestartuje się w trakcie.')">Zaktualizuj agenta</button></div>
+      </form></div>
+    </div>
+  </div></div></div>
+  {% endif %}
+
+  <div class="col-12"><div class="card"><div class="card-header">Historia poleceń</div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>ID</th><th>Utworzono</th><th>Polecenie</th><th>Status</th><th>Wynik / błąd</th></tr></thead><tbody>
+    {% for job in jobs %}<tr><td>#{{ job.id }}</td><td>{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td><code>{{ job.action }}</code></td><td>{% set badge={'pending':'secondary','running':'warning','success':'success','failed':'danger'}.get(job.status,'secondary') %}<span class="badge text-bg-{{ badge }}">{{ job.status }}</span></td><td style="min-width:320px">{% if job.error_message %}<div class="text-danger text-break">{{ job.error_message }}</div>{% elif job.result and job.result.get('output') %}<details><summary>Pokaż wynik</summary><pre class="job-output mt-2">{{ job.result.get('output') }}</pre></details>{% else %}<span class="text-secondary">—</span>{% endif %}</td></tr>{% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Brak poleceń.</td></tr>{% endfor %}
+  </tbody></table></div></div></div>
+
+  <div class="col-12"><div class="card"><div class="card-header">Dyski</div><div class="card-body"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Dysk</th><th>Rozmiar</th><th>Wolne</th><th>Wykorzystanie</th></tr></thead><tbody>{% for disk in agent.disks %}<tr><td>{{ disk.get('mount', disk.get('name', disk.get('device', '—'))) }}</td><td>{% if disk.get('total_bytes') %}{{ '%.1f'|format(disk.total_bytes / 1073741824) }} GB{% else %}{{ disk.get('size_gb', '—') }}{% endif %}</td><td>{% if disk.get('free_bytes') %}{{ '%.1f'|format(disk.free_bytes / 1073741824) }} GB{% else %}{{ disk.get('free_gb', '—') }}{% endif %}</td><td>{% if disk.get('percent_used') is not none %}{{ '%.1f%%'|format(disk.get('percent_used')) }}{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-secondary">Brak danych.</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+</div>
+{% endblock %}

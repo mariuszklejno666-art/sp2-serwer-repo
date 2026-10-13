@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Komputery AD — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="h3 mb-1">Komputery Active Directory</h2>
+    <div class="text-secondary">Konta komputerów odczytane bezpośrednio z Samba AD.</div>
+  </div>
+  <a class="btn btn-outline-success" href="{{ url_for('directory.computers_export', q=query) }}">Eksport CSV</a>
+</div>
+<form method="get" class="card border-0 shadow-sm mb-4"><div class="card-body"><div class="input-group">
+  <input class="form-control" name="q" value="{{ query }}" placeholder="Nazwa komputera lub DNS">
+  <button class="btn btn-primary" type="submit">Szukaj</button>
+  {% if query %}<a class="btn btn-outline-secondary" href="{{ url_for('directory.computers') }}">Wyczyść</a>{% endif %}
+</div></div></form>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+<div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+<table class="table table-hover align-middle mb-0"><thead><tr><th>Nazwa</th><th>DNS</th><th>System</th><th>OU</th><th>Ostatnie logowanie</th></tr></thead><tbody>
+{% for item in records %}
+<tr>
+  <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('directory.computer_details', computer=computer_name(item)) }}">{{ computer_name(item) }}</a></td>
+  <td>{{ first_value(item, 'dNSHostName') }}</td>
+  <td>{{ first_value(item, 'operatingSystem') }}{% if first_value(item, 'operatingSystemVersion', '') %}<div class="small text-secondary">{{ first_value(item, 'operatingSystemVersion') }}</div>{% endif %}</td>
+  <td>{{ dn_organizational_path(item.dn) }}</td>
+  <td>{{ format_ad_datetime(item.get('lastLogonTimestamp')) }}</td>
+</tr>
+{% else %}<tr><td colspan="5" class="text-center text-secondary py-5">Brak wyników.</td></tr>{% endfor %}
+</tbody></table></div></div></div>
+{% endblock %}

@@ -1,0 +1,21 @@
+[Unit]
+Description=SP2 ADMIN preview (separate read-only instance)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sp2-preview
+Group=sp2-preview
+WorkingDirectory=/opt/sp2-admin-preview
+EnvironmentFile=/etc/sp2-admin-preview.env
+ExecStart=/opt/sp2-admin-preview/.venv/bin/gunicorn --bind 127.0.0.1:5051 --workers 2 run:app
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/sp2-admin-preview /opt/sp2-admin-preview/instance
+
+[Install]
+WantedBy=multi-user.target

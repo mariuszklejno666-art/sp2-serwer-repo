@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dyski sieciowe — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="service-hero rounded-4 p-4 p-lg-5 mb-4">
+  <span class="service-eyebrow">Audyt Samba i GPO</span>
+  <h2 class="mt-2 mb-1">Dyski sieciowe</h2>
+  <p class="text-secondary mb-0">
+    Sprawdzenie, czy nauczyciele i uczniowie widzą właściwe udziały zgodnie z grupami AD.
+  </p>
+</section>
+
+<div class="row g-4 mb-4">
+  {% for nas in nas_checks %}
+  <div class="col-12 col-lg-6">
+    <article class="card service-card h-100 border-0">
+      <div class="card-body p-4">
+        <span class="badge {{ 'text-bg-success' if nas.reachable else 'text-bg-danger' }} mb-3">
+          {{ 'SMB online' if nas.reachable else 'SMB offline' }}
+        </span>
+        <h3 class="h5">{{ nas.name }}</h3>
+        <p class="font-monospace mb-2">{{ nas.host }}:445</p>
+        <p class="text-secondary mb-0">{{ nas.message }}</p>
+      </div>
+    </article>
+  </div>
+  {% else %}
+  <div class="col-12"><div class="alert alert-warning mb-0">Nie skonfigurowano jeszcze adresów serwerów NAS.</div></div>
+  {% endfor %}
+</div>
+
+{% if snmp_configured %}
+<h3 class="h5 mb-3">Zapełnienie woluminów (SNMP)</h3>
+{% if snmp_error %}
+<div class="alert alert-danger mb-4">{{ snmp_error }}</div>
+{% elif volumes %}
+<div class="row g-4 mb-4">
+  {% for volume in volumes %}
+  <div class="col-12 col-lg-6">
+    <article class="card service-card h-100 border-0">
+      <div class="card-body p-4">
+        <span class="badge {{ 'text-bg-danger' if volume.percent_used >= volume_warning_percent else 'text-bg-warning' if volume.percent_used >= 70 else 'text-bg-success' }} mb-3">
+          {{ '%.1f%%'|format(volume.percent_used) }} zapełnione
+        </span>
+        <h3 class="h5 font-monospace">{{ volume.label }}</h3>
+        <p class="text-secondary mb-0">
+          {{ '%.1f'|format(volume.used_bytes / 1073741824) }} GB / {{ '%.1f'|format(volume.total_bytes / 1073741824) }} GB
+        </p>
+      </div>
+    </article>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-warning mb-4">SNMP odpowiedział, ale nie znaleziono żadnego woluminu dyskowego.</div>
+{% endif %}
+{% endif %}
+
+<h3 class="h5 mb-3">Zgodność udziałów z grupami AD</h3>
+{% if directory_error %}
+<div class="alert alert-danger">{{ directory_error }}</div>
+{% elif share_audit %}
+<div class="row g-4">
+  {% for item in share_audit %}
+  <div class="col-12 col-lg-6">
+    <article class="card service-card h-100 border-0">
+      <div class="card-body p-4">
+        <span class="badge {{ 'text-bg-success' if item.found else 'text-bg-danger' }} mb-3">
+          {{ 'Grupa istnieje' if item.found else 'Brak grupy w AD' }}
+        </span>
+        <h3 class="h5">{{ item.share }}</h3>
+        <p class="font-monospace mb-2">{{ item.group }}</p>
+        {% if item.found %}
+        <p class="text-secondary mb-0">Członków grupy: {{ item.member_count }}</p>
+        {% else %}
+        <p class="text-secondary mb-0">Sprawdź nazwę grupy w Samba AD — mapowanie w konfiguracji jej nie znajduje.</p>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-warning mb-0">
+  Nie skonfigurowano jeszcze mapowań udział=grupa (<code>NETWORK_DRIVE_SHARE_GROUPS</code>).
+</div>
+{% endif %}
+
+<div class="alert alert-info mt-4 mb-0">
+  Kontrola grup jest tylko do odczytu i sprawdza jedynie, czy oczekiwana grupa AD istnieje
+  i ma członków — panel nie ma osobnych poświadczeń administracyjnych do serwera NAS, więc nie
+  weryfikuje faktycznych uprawnień do plików na udziale. Zapełnienie woluminów pochodzi
+  z SNMP tylko-do-odczytu (community string), nie z hasła panelu NAS. Wolumin bywa
+  współdzielony przez kilka udziałów — procent dotyczy całego woluminu, nie pojedynczego folderu.
+</div>
+{% endblock %}

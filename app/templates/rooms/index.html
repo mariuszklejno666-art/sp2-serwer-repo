@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Sale — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="mb-1">Sale komputerowe</h2>
+    <p class="text-secondary mb-0">Stan agentów według przypisania sali lub nazwy S11-/S32-/S4-/S7-.</p>
+  </div>
+  {% if unassigned %}<a class="btn btn-outline-warning" href="{{ url_for('agents.index') }}">Bez przypisanej sali: {{ unassigned }}</a>{% endif %}
+</div>
+<div class="row g-4">
+  {% for room in rooms %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <a class="text-decoration-none text-reset" href="{{ url_for('rooms.details', room_name=room.name) }}">
+      <article class="card h-100 border-0 shadow-sm">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div><p class="text-uppercase small text-secondary fw-semibold mb-2">Sala</p><h3 class="h4 mb-3">{{ room.name }}</h3></div>
+            <span class="badge text-bg-primary p-2">{{ room.total }} komputerów</span>
+          </div>
+          <div class="d-flex gap-2"><span class="badge text-bg-success">Online: {{ room.online }}</span><span class="badge text-bg-danger">Offline: {{ room.offline }}</span></div>
+        </div>
+      </article>
+    </a>
+  </div>
+  {% else %}
+  <div class="col-12"><div class="alert alert-info">Agenci nie mają jeszcze przypisanych nazw sal. Pole „room” agent może przesyłać w heartbeat.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

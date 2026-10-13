@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ row.room }} — wdrożenie agentów — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="mb-1">{{ row.room }} — komputery</h2>
+    <p class="text-secondary mb-0">Szczegóły wdrożenia SP2 Agent dla komputerów znajdujących się w OU {{ row.room }}.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('agents.deployment') }}">← Wdrożenie agentów</a>
+</div>
+
+{% if errors %}
+<div class="alert alert-warning"><strong>Uwagi:</strong><ul class="mb-0 mt-2">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">W OU</div><div class="fs-4 fw-semibold">{{ row.ou_count }}</div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">W grupie</div><div class="fs-4 fw-semibold">{{ row.count }}</div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">Agent</div><div class="fs-4 fw-semibold">{{ row.reporting }}</div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">Online</div><div class="fs-4 fw-semibold text-success">{{ row.online }}</div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">Offline</div><div class="fs-4 fw-semibold text-danger">{{ row.offline }}</div></div></div>
+  <div class="col-lg-2 col-md-4"><div class="card card-body h-100"><div class="text-secondary small">Oczekuje</div><div class="fs-4 fw-semibold text-warning">{{ row.waiting }}</div></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <strong>Stanowiska — {{ row.room }}</strong>
+    <span class="text-secondary small">stan na {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Komputer</th><th>Grupa GPO</th><th>Agent</th><th>Status</th><th>Wersja agenta</th><th>Windows</th><th>IP</th><th>Ostatni kontakt</th><th style="min-width:330px">Akcje</th></tr></thead>
+      <tbody>
+        {% for item in row.computers %}
+        <tr>
+          <td class="fw-semibold">{{ item.hostname }}</td>
+          <td>{% if item.in_group %}<span class="badge text-bg-success">W grupie</span>{% else %}<span class="badge text-bg-warning">Brak w grupie</span>{% endif %}</td>
+          <td>{% if item.agent %}<span class="badge text-bg-primary">Zainstalowany</span>{% else %}<span class="badge text-bg-secondary">Oczekuje</span>{% endif %}</td>
+          <td>{% if item.status == 'online' %}<span class="badge text-bg-success">Online</span>{% elif item.status == 'offline' %}<span class="badge text-bg-danger">Offline</span>{% else %}<span class="badge text-bg-warning">Brak agenta</span>{% endif %}</td>
+          <td>{{ item.agent.agent_version if item.agent and item.agent.agent_version else '—' }}</td>
+          <td>{% if item.agent %}{{ item.agent.os_name or '—' }}<div class="small text-secondary">{{ item.agent.os_version or '' }}</div>{% else %}—{% endif %}</td>
+          <td>{{ item.agent.primary_ip if item.agent else '—' }}</td>
+          <td>{% if item.agent and item.agent.last_seen %}{{ item.agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}—{% endif %}</td>
+          <td>
+            {% if item.agent %}
+            <div class="d-flex flex-wrap gap-1">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agents.details', agent_id=item.agent.id) }}">Szczegóły</a>
+              {% if current_user.role == 'administrator' %}
+              <form method="post" action="{{ url_for('agents.create_command', agent_id=item.agent.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="inventory">
+                <button class="btn btn-sm btn-outline-info" type="submit">Inwentaryzacja</button>
+              </form>
+              <form method="post" action="{{ url_for('agents.create_command', agent_id=item.agent.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="gpupdate">
+                <button class="btn btn-sm btn-outline-info" type="submit">GPUpdate</button>
+              </form>
+              <form method="post" action="{{ url_for('agents.create_command', agent_id=item.agent.id) }}" onsubmit="return confirm('Uruchomić ponownie komputer {{ item.hostname }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="restart">
+                <input type="hidden" name="confirm" value="yes">
+                <button class="btn btn-sm btn-outline-warning" type="submit">Restart</button>
+              </form>
+              {% endif %}
+            </div>
+            {% else %}
+            <span class="text-secondary small">Brak agenta — oczekuje na GPO</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-secondary py-5">Brak komputerów w tym OU.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

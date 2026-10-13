@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Komputery — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div><h2 class="mb-1">Komputery i agenci Windows</h2><p class="text-secondary mb-0">Inwentaryzacja stanowisk raportujących do SP2 ADMIN.</p></div>
+  <div class="d-flex gap-2 align-items-center"><a class="btn btn-outline-warning" href="{{ url_for('agents.cleanup_preview') }}">Porządkowanie</a><a class="btn btn-outline-primary" href="{{ url_for('agents.deployment') }}">Wdrożenie agentów</a><a class="btn btn-outline-primary" href="{{ url_for('agents.software_catalog_page') }}">Pakiety oprogramowania</a><span class="badge text-bg-success p-2">Online: {{ online_count }}</span><span class="badge text-bg-danger p-2">Offline: {{ offline_count }}</span></div>
+</div>
+<form class="card card-body mb-4" method="get">
+  <div class="row g-3 align-items-end">
+    <div class="col-lg-5"><label class="form-label">Szukaj</label><input class="form-control" name="q" value="{{ query }}" placeholder="Nazwa, użytkownik, numer seryjny"></div>
+    <div class="col-lg-3"><label class="form-label">Sala / OU</label><select class="form-select" name="room"><option value="">Wszystkie</option>{% for item in rooms %}<option value="{{ item }}" {% if item == selected_room %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-lg-2"><label class="form-label">Status</label><select class="form-select" name="status"><option value="">Wszystkie</option><option value="online" {% if selected_status == 'online' %}selected{% endif %}>Online</option><option value="offline" {% if selected_status == 'offline' %}selected{% endif %}>Offline</option></select></div>
+    <div class="col-lg-2 d-grid"><button class="btn btn-primary">Filtruj</button></div>
+  </div>
+</form>
+<div class="card"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Status</th><th>Komputer</th><th>Sala</th><th>Windows</th><th>Użytkownik</th><th>IP</th><th>RAM</th><th>Ostatni kontakt</th></tr></thead><tbody>
+{% for agent in agents %}<tr><td>{% if agent.is_online(threshold) %}<span class="badge text-bg-success">Online</span>{% else %}<span class="badge text-bg-danger">Offline</span>{% endif %}</td><td><a class="fw-semibold text-decoration-none" href="{{ url_for('agents.details', agent_id=agent.id) }}">{{ agent.hostname }}</a><div class="small text-secondary">{{ agent.model or agent.fqdn or '—' }}</div></td><td>{{ agent.room or '—' }}<div class="small text-secondary text-truncate" style="max-width:220px">{{ agent.ou or '' }}</div></td><td>{{ agent.os_name or '—' }}<div class="small text-secondary">{{ agent.os_version or '' }}</div></td><td>{{ agent.username or '—' }}</td><td>{{ agent.primary_ip }}</td><td>{{ '%.1f GB'|format(agent.ram_bytes / 1073741824) if agent.ram_bytes else '—' }}</td><td>{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td></tr>{% else %}<tr><td colspan="8" class="text-center text-secondary py-5">Brak komputerów spełniających kryteria.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

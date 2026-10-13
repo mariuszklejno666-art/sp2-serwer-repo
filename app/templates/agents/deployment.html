@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Wdrożenie agentów — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="mb-1">Wdrożenie agentów</h2>
+    <p class="text-secondary mb-0">Automatyczna synchronizacja OU → grupy wdrożeniowe → GPO → SP2 Agent.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('agents.index') }}">← Agenci Windows</a>
+    {% if current_user.role == 'administrator' %}
+    <form method="post" action="{{ url_for('agents.deployment_enrollment_code') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" type="submit">Utwórz kod USB (30 min)</button>
+    </form>
+    <form method="post" action="{{ url_for('agents.deployment_sync_now') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit">Synchronizuj teraz</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if errors %}
+<div class="alert alert-warning"><strong>Uwagi:</strong><ul class="mb-0 mt-2">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-3 col-md-6"><div class="card card-body h-100"><div class="text-secondary small">TIMER</div><div class="fs-5 fw-semibold">{{ timer.get('ActiveState', 'unknown') }} / {{ timer.get('SubState', 'unknown') }}</div><div class="small text-secondary mt-2">Następne: {{ timer.get('NextElapseUSecRealtime') or '—' }}</div></div></div>
+  <div class="col-lg-3 col-md-6"><div class="card card-body h-100"><div class="text-secondary small">POSTĘP CAŁOŚCI</div><div class="fs-5 fw-semibold">{{ totals.progress }}%</div><div class="progress mt-2" role="progressbar" aria-valuenow="{{ totals.progress }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width: {{ totals.progress }}%"></div></div><div class="small text-secondary mt-2">{{ totals.reporting }}/{{ totals.ou }} komputerów raportuje</div></div></div>
+  <div class="col-lg-3 col-md-6"><div class="card card-body h-100"><div class="text-secondary small">STAN AGENTÓW</div><div class="fs-5 fw-semibold"><span class="text-success">{{ totals.online }} online</span></div><div class="small text-secondary mt-2">Oczekuje na instalację: {{ totals.waiting }}</div></div></div>
+  <div class="col-lg-3 col-md-6"><div class="card card-body h-100"><div class="text-secondary small">GRUPA GŁÓWNA</div><div class="fs-5 fw-semibold">SP2-Agent-Deployment</div><div class="small text-secondary mt-2">Elementów: {{ deployment_members|length }}</div></div></div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center"><strong>Sale i postęp wdrożenia</strong><span class="text-secondary small">stan na {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</span></div>
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+    <thead><tr><th>Sala / OU</th><th>Wdrożenie</th><th>W OU</th><th>W grupie</th><th>Agent</th><th>Online</th><th>Offline</th><th>Oczekuje</th><th style="min-width:180px">Postęp</th><th>Członkowie</th><th></th></tr></thead>
+    <tbody>
+      {% for row in rooms %}
+      <tr>
+        <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('agents.deployment_room', room=row.room) }}">{{ row.room }}</a></td>
+        <td>{% if row.enabled %}<span class="badge text-bg-success">Włączone</span>{% else %}<span class="badge text-bg-secondary">Wyłączone</span>{% endif %}</td>
+        <td><span class="badge text-bg-info">{{ row.ou_count }}</span></td>
+        <td><span class="badge text-bg-primary">{{ row.count }}</span>{% if row.group_missing %}<div class="small text-warning mt-1">Brakuje w grupie: {{ row.group_missing|join(', ') }}</div>{% endif %}</td>
+        <td>{{ row.reporting }}</td>
+        <td>{% if row.online %}<span class="badge text-bg-success">{{ row.online }}</span>{% else %}<span class="badge text-bg-secondary">0</span>{% endif %}</td>
+        <td>{% if row.offline %}<span class="badge text-bg-danger">{{ row.offline }}</span>{% else %}<span class="badge text-bg-secondary">0</span>{% endif %}</td>
+        <td>{% if row.waiting %}<span class="badge text-bg-warning">{{ row.waiting }}</span><div class="small text-warning mt-1">{{ row.waiting_names|join(', ') }}</div>{% else %}<span class="badge text-bg-secondary">0</span>{% endif %}</td>
+        <td><div class="d-flex align-items-center gap-2"><div class="progress flex-grow-1" style="height:8px"><div class="progress-bar" style="width: {{ row.progress }}%"></div></div><span class="small fw-semibold">{{ row.progress }}%</span></div></td>
+        <td class="small text-secondary">{{ row.members|join(', ') if row.members else '—' }}</td>
+        <td class="text-end"><div class="d-flex gap-2 justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('agents.deployment_room', room=row.room) }}">Pokaż komputery</a>{% if current_user.role == 'administrator' %}<form method="post" action="{{ url_for('agents.deployment_toggle_room', room=row.room) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if row.enabled %}<input type="hidden" name="action" value="disable"><button class="btn btn-sm btn-outline-danger" type="submit">Wyłącz</button>{% else %}<input type="hidden" name="action" value="enable"><button class="btn btn-sm btn-outline-success" type="submit">Włącz</button>{% endif %}</form>{% endif %}</div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card">
+  <div class="card-header"><strong>Ostatni log synchronizacji</strong></div>
+  <div class="card-body"><pre class="mb-0 small" style="white-space:pre-wrap;max-height:420px;overflow:auto">{{ sync_log }}</pre></div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+[Unit]
+Description=SP2 ADMIN - bezpieczny raport diagnostyczny
+After=sp2-admin.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0027
+ExecStart=/usr/bin/python3 /usr/local/lib/sp2-admin/sp2_audit_report.py runtime --report-dir /var/lib/sp2-admin-audit --report-group codex-audit --health-url http://127.0.0.1/health --health-host dc.sp2.lan
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/sp2-admin-audit
+TimeoutStartSec=45
+

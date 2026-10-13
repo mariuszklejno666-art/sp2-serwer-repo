@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Zarządzanie ogłoszeniami — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="service-hero rounded-4 p-4 p-lg-5 mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3 align-items-center">
+    <div><span class="service-eyebrow">Elektroniczne ogłoszenia</span><h2 class="mt-2 mb-1">Zarządzanie publikacją</h2><p class="text-secondary mb-0">Nowe komunikaty są domyślnie wyłączone i wymagają osobnego opublikowania.</p></div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('school_services.announcements_board') }}">← Tablica</a>
+  </div>
+</section>
+
+<div class="row g-4">
+  <div class="col-12 col-xl-5">
+    <section class="card border-0 service-card"><div class="card-body p-4">
+      <h3 class="h5">Nowe ogłoszenie</h3>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3"><label class="form-label">Tytuł</label><input class="form-control" name="title" maxlength="160" required></div>
+        <div class="mb-3"><label class="form-label">Treść</label><textarea class="form-control" name="body" rows="7" maxlength="5000" required></textarea></div>
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Priorytet</label><select class="form-select" name="priority">{% for value in priorities %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></div>
+          <div class="col-md-6"><label class="form-label">Odbiorcy</label><select class="form-select" name="audience">{% for value in audiences %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></div>
+          <div class="col-md-6"><label class="form-label">Początek</label><input class="form-control" type="datetime-local" name="starts_at"></div>
+          <div class="col-md-6"><label class="form-label">Koniec</label><input class="form-control" type="datetime-local" name="ends_at"></div>
+        </div>
+        <div class="form-check mt-3"><input class="form-check-input" type="checkbox" name="pinned" id="pinned"><label class="form-check-label" for="pinned">Przypnij na górze</label></div>
+        <button class="btn btn-primary mt-3">Zapisz jako wyłączone</button>
+      </form>
+    </div></section>
+  </div>
+  <div class="col-12 col-xl-7">
+    <section class="card border-0 service-card"><div class="card-body p-4">
+      <h3 class="h5 mb-3">Zapisane ogłoszenia</h3>
+      {% for item in announcements %}
+      <div class="border rounded-3 p-3 mb-3">
+        <div class="d-flex justify-content-between gap-3"><div><strong>{{ item.title }}</strong><div class="small text-secondary">{{ item.priority }} · {{ item.audience }} · autor: {{ item.created_by }}</div></div><span class="badge text-bg-{{ 'success' if item.enabled else 'secondary' }}">{{ 'Opublikowane' if item.enabled else 'Wyłączone' }}</span></div>
+        <p class="mt-2 mb-3">{{ item.body|truncate(220) }}</p>
+        <form method="post" action="{{ url_for('school_services.announcement_toggle', item_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-primary">{{ 'Wyłącz' if item.enabled else 'Opublikuj' }}</button></form>
+      </div>
+      {% else %}<div class="text-secondary">Brak ogłoszeń.</div>{% endfor %}
+    </div></section>
+  </div>
+</div>
+{% endblock %}

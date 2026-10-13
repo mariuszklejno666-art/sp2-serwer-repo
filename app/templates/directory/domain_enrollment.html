@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Kreator domeny — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h2 class="h3 mb-1">Kreator komputera domenowego</h2>
+    <p class="text-secondary mb-0">
+      Wybierz przeznaczenie komputera i sprawdź nazwę przed dołączeniem do domeny.
+    </p>
+  </div>
+  <span class="badge rounded-pill text-bg-success px-3 py-2">Kreator 2.0</span>
+</div>
+
+{% if config.PREVIEW_DEMO_DATA %}
+<div class="alert alert-warning"><strong>Symulacja:</strong> nazwy i OU pochodzą z fikcyjnej domeny <code>sp2.test</code>. Kreator nie dołącza stacji ani nie zmienia Samba AD.</div>
+{% else %}
+<div class="alert alert-info">
+  <strong>Etap planowania:</strong> panel sprawdza Active Directory, wolne numery,
+  docelową nazwę oraz OU. <strong>Etap wykonawczy:</strong> na przygotowywanym
+  komputerze uruchom <code>START-MIGRACJA.cmd</code> z paczki
+  <code>SP2-Agent-USB-KREATOR-2</code>. Program ustawi DNS
+  {% if dns_servers %}<code>{{ dns_servers | join(', ') }}</code>{% endif %},
+  dołączy komputer do domeny i automatycznie dokończy instalację po restarcie.
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <form method="get" class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <h3 class="h5 mb-3">1. Rodzaj stanowiska</h3>
+        <div class="d-flex flex-wrap gap-4 mb-4">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mode" id="mode-room"
+                   value="room" {% if mode == 'room' %}checked{% endif %}>
+            <label class="form-check-label" for="mode-room">Komputer w sali</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mode" id="mode-teacher"
+                   value="teacher" {% if mode == 'teacher' %}checked{% endif %}>
+            <label class="form-check-label" for="mode-teacher">Komputer nauczyciela</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mode" id="mode-admin"
+                   value="admin" {% if mode == 'admin' %}checked{% endif %}>
+            <label class="form-check-label" for="mode-admin">Komputer administracji</label>
+          </div>
+        </div>
+
+        <div id="room-fields">
+          <h3 class="h5 mb-3">2. Sala i numer komputera</h3>
+          <div class="row g-3 mb-4">
+            <div class="col-md-8">
+              <label class="form-label" for="room-ou">Jednostka OU sali</label>
+              <select class="form-select" id="room-ou" name="organizational_unit">
+                {% for item in ou_options if item.mode == 'room' %}
+                <option value="{{ item.distinguished_name }}"
+                        {% if selected_ou == item.distinguished_name %}selected{% endif %}>
+                  {{ item.path }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="computer-number">Numer komputera</label>
+              <input class="form-control" id="computer-number" name="number"
+                     type="number" min="1" max="99" value="{{ number or 1 }}" required>
+            </div>
+          </div>
+        </div>
+
+        <div id="teacher-fields">
+          <h3 class="h5 mb-3">2. Nauczyciel i docelowa OU</h3>
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label" for="teacher-account">Nauczyciel</label>
+              <select class="form-select" id="teacher-account" name="teacher">
+                <option value="">Wybierz osobę…</option>
+                {% for item in teachers %}
+                {% set username = first_value(item, 'sAMAccountName', '') %}
+                <option value="{{ username }}"
+                        {% if selected_teacher == username %}selected{% endif %}>
+                  {{ first_value(item, 'displayName', username) }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="teacher-ou">Jednostka OU komputera</label>
+              <select class="form-select" id="teacher-ou" name="organizational_unit">
+                {% for item in ou_options if item.mode == 'teacher' %}
+                <option value="{{ item.distinguished_name }}"
+                        {% if selected_ou == item.distinguished_name %}selected{% endif %}>
+                  {{ item.path }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-fields">
+          <h3 class="h5 mb-3">2. Docelowa OU administracji</h3>
+          <div class="mb-4">
+            <label class="form-label" for="admin-ou">Jednostka OU komputera</label>
+            <select class="form-select" id="admin-ou" name="organizational_unit">
+              {% for item in ou_options if item.mode == 'admin' %}
+              <option value="{{ item.distinguished_name }}"
+                      {% if selected_ou == item.distinguished_name %}selected{% endif %}>
+                {{ item.path }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Pokaż proponowaną nazwę</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-4">
+        <h3 class="h5 mb-3">Podgląd</h3>
+        {% if preview_error %}
+        <div class="alert alert-danger">{{ preview_error }}</div>
+        {% elif preview %}
+        <div class="text-secondary mb-2">Nazwa komputera</div>
+        <div class="display-6 fw-semibold font-monospace mb-3">
+          {{ preview.computer_name }}
+        </div>
+        {% if preview.free_numbers is not none %}
+        <div class="mb-3">
+          <div class="text-secondary small mb-1">Wolne numery w wybranej sali</div>
+          <div class="font-monospace text-break">
+            {{ preview.free_numbers | join(', ') if preview.free_numbers else 'Brak wolnych numerów' }}
+          </div>
+        </div>
+        {% endif %}
+        {% if preview.available %}
+        <div class="alert alert-success">Nazwa jest wolna w Active Directory.</div>
+        {% else %}
+        <div class="alert alert-danger">
+          Taka nazwa już istnieje. Wybierz inny numer komputera.
+        </div>
+        {% endif %}
+        <dl class="row small mb-0">
+          <dt class="col-sm-4">Docelowa OU</dt>
+          <dd class="col-sm-8">{{ preview.organizational_unit.path }}</dd>
+          <dt class="col-sm-4">Zmiany</dt>
+          <dd class="col-sm-8">Wykonuje lokalny Kreator 2.0 po uruchomieniu START-MIGRACJA.cmd</dd>
+        </dl>
+        {% else %}
+        <p class="text-secondary mb-0">
+          Uzupełnij pola, aby sprawdzić końcową nazwę i konflikt z istniejącym
+          kontem komputera.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const roomMode = document.getElementById("mode-room");
+  const teacherMode = document.getElementById("mode-teacher");
+  const adminMode = document.getElementById("mode-admin");
+  const roomFields = document.getElementById("room-fields");
+  const teacherFields = document.getElementById("teacher-fields");
+  const adminFields = document.getElementById("admin-fields");
+  const roomOu = document.getElementById("room-ou");
+  const number = document.getElementById("computer-number");
+  const teacher = document.getElementById("teacher-account");
+  const teacherOu = document.getElementById("teacher-ou");
+  const adminOu = document.getElementById("admin-ou");
+
+  const updateMode = () => {
+    const isRoom = roomMode.checked;
+    const isTeacher = teacherMode.checked;
+    const isAdmin = adminMode.checked;
+    roomFields.hidden = !isRoom;
+    teacherFields.hidden = !isTeacher;
+    adminFields.hidden = !isAdmin;
+    roomOu.disabled = !isRoom;
+    number.disabled = !isRoom;
+    teacher.disabled = !isTeacher;
+    teacherOu.disabled = !isTeacher;
+    adminOu.disabled = !isAdmin;
+    teacher.required = isTeacher;
+  };
+
+  roomMode.addEventListener("change", updateMode);
+  teacherMode.addEventListener("change", updateMode);
+  adminMode.addEventListener("change", updateMode);
+  updateMode();
+})();
+</script>
+{% endblock %}

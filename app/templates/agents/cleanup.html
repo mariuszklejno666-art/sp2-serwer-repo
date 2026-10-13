@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Porządkowanie agentów — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="mb-1">Porządkowanie agentów Windows</h2>
+    <p class="text-secondary mb-0">Bezpieczne, odwracalne porządkowanie starych rekordów po zmianie nazw.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('agents.index') }}">Wróć do agentów</a>
+</div>
+
+<div class="alert alert-info">
+  Archiwizacja nie usuwa komputera, rejestracji ani historii zadań. Ukrywa stary rekord
+  na głównej liście i można ją cofnąć. Przycisk jest dostępny tylko po jednoznacznym
+  dopasowaniu po numerze seryjnym albo adresie MAC.
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-6"><div class="card card-body">
+    <div class="text-secondary small">Dopasowane do nowej nazwy</div>
+    <div class="display-6 text-success">{{ matched_count }}</div>
+  </div></div>
+  <div class="col-md-6"><div class="card card-body">
+    <div class="text-secondary small">Wymagają ręcznego sprawdzenia</div>
+    <div class="display-6 text-warning">{{ unmatched_count }}</div>
+  </div></div>
+</div>
+
+<div class="card mb-4"><div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Stary rekord</th><th>Ostatni kontakt</th><th>Proponowany następca</th><th>Dopasowanie</th><th>Decyzja</th></tr></thead>
+  <tbody>
+  {% for item in candidates %}
+    <tr>
+      <td><a href="{{ url_for('agents.details', agent_id=item.legacy.id) }}">{{ item.legacy.hostname }}</a>
+        <div class="small text-secondary">{{ item.legacy.serial_number or 'brak numeru seryjnego' }}</div>
+      </td>
+      <td>{{ item.legacy.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>
+        {% if item.successor %}
+          <a class="fw-semibold" href="{{ url_for('agents.details', agent_id=item.successor.id) }}">{{ item.successor.hostname }}</a>
+          <div class="small text-secondary">{{ item.successor.room or item.successor.ou or '—' }}</div>
+        {% else %}
+          <span class="text-warning">Nie znaleziono</span>
+        {% endif %}
+      </td>
+      <td>{{ item.reason or '—' }}</td>
+      <td>
+        {% if item.successor %}
+          <form method="post" action="{{ url_for('agents.archive_agent', agent_id=item.legacy.id) }}"
+                onsubmit="return confirm('Zarchiwizować stary rekord {{ item.legacy.hostname }}? Dane i historia zostaną zachowane.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="confirm" value="archive">
+            <input type="hidden" name="successor_id" value="{{ item.successor.id }}">
+            <button class="btn btn-sm btn-success" type="submit">Archiwizuj</button>
+          </form>
+        {% else %}
+          <span class="badge text-bg-warning">Sprawdź ręcznie</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-secondary py-5">Nie znaleziono starych nieaktywnych agentów.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3 class="h5 mb-0">Archiwum</h3>
+  <span class="badge text-bg-secondary">{{ archived|length }}</span>
+</div>
+<div class="card"><div class="table-responsive">
+<table class="table table-hover align-middle mb-0">
+  <thead><tr><th>Stary rekord</th><th>Następca</th><th>Powód</th><th>Zarchiwizowano</th><th></th></tr></thead>
+  <tbody>
+  {% for item in archived %}
+    <tr>
+      <td>
+        {% if item.legacy %}
+          <a href="{{ url_for('agents.details', agent_id=item.legacy.id) }}">{{ item.legacy.hostname }}</a>
+        {% else %}Usunięty rekord{% endif %}
+      </td>
+      <td>
+        {% if item.successor %}
+          <a href="{{ url_for('agents.details', agent_id=item.successor.id) }}">{{ item.successor.hostname }}</a>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ item.archive.reason }}</td>
+      <td>{{ item.archive.archived_at.strftime('%Y-%m-%d %H:%M:%S') }}<div class="small text-secondary">{{ item.archive.archived_by }}</div></td>
+      <td>
+        <form method="post" action="{{ url_for('agents.restore_agent', archive_id=item.archive.id) }}"
+              onsubmit="return confirm('Przywrócić ten rekord do głównej listy agentów?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="confirm" value="restore">
+          <button class="btn btn-sm btn-outline-warning" type="submit">Przywróć</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="text-center text-secondary py-4">Archiwum jest puste.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

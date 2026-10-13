@@ -1,0 +1,13 @@
+Flask<4.0,>=3.0
+Flask-Login<1.0,>=0.6.3
+Flask-SQLAlchemy<4.0,>=3.1
+Flask-WTF<2.0,>=1.2
+python-dotenv<2.0,>=1.0
+gunicorn<24,>=22
+ldap3<3.0,>=2.9.1
+pysnmp<8.0,>=7.1
+
+[dev]
+pytest<9,>=8
+pytest-cov<7,>=5
+ruff<1.0,>=0.6

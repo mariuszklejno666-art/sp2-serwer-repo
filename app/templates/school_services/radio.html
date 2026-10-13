@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% block title %}Radiowęzeł — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="service-hero rounded-4 p-4 p-lg-5 mb-4">
+  <div class="d-flex flex-wrap justify-content-between gap-3">
+    <div>
+      <span class="service-eyebrow">Automatyka szkolna</span>
+      <h2 class="mt-2 mb-1">Radiowęzeł</h2>
+      <p class="text-secondary mb-0">Kalendarz szkoły i bezpieczny podgląd decyzji o dzwonkach.</p>
+    </div>
+    <div class="server-clock text-end">
+      <span>Czas serwera</span>
+      <strong>{{ server_time.strftime("%d.%m.%Y %H:%M:%S") }}</strong>
+      <small>Europe/Warsaw</small>
+    </div>
+  </div>
+</section>
+
+{% if playback_status.running %}
+<div class="alert alert-success d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div>
+    <strong>Odtwarzanie aktywne:</strong> {{ playback_status.playlist_name }}
+    przez lokalne wyjście audio 3,5 mm.
+  </div>
+  <form method="post" action="{{ url_for('school_services.stop_audio_playback') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-danger">Zatrzymaj odtwarzanie</button>
+  </form>
+</div>
+{% elif playback_enabled %}
+<div class="alert alert-info">
+  Odtwarzanie przez wzmacniacz jest gotowe. Dźwięk uruchamia się wyłącznie ręcznie
+  przyciskiem przy wybranej playliście.
+</div>
+{% else %}
+<div class="alert alert-warning">
+  Odtwarzanie audio jest wyłączone w konfiguracji serwera.
+</div>
+{% endif %}
+
+<section class="card border-0 service-card mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+      <div>
+        <h3 class="h5 mb-1">Generator komunikatów głosowych</h3>
+        <p class="text-secondary mb-0">
+          Wpisz komunikat po polsku. Serwer wygeneruje mowę lokalnie i odtworzy ją
+          przez wyjście audio 3,5 mm.
+        </p>
+      </div>
+      <span class="badge text-bg-{{ 'success' if playback_enabled else 'warning' }} align-self-start">
+        {{ "Gotowy" if playback_enabled else "Odtwarzanie wyłączone" }}
+      </span>
+    </div>
+    <form method="post" action="{{ url_for('school_services.play_spoken_announcement') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="form-label" for="spoken-announcement">Treść komunikatu</label>
+      <textarea
+        class="form-control mb-2"
+        id="spoken-announcement"
+        name="announcement"
+        rows="3"
+        maxlength="500"
+        placeholder="Uwaga! Prosimy uczniów klasy ósmej o zgłoszenie się do sekretariatu."
+        required
+      ></textarea>
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <small class="text-secondary">
+          Maksymalnie 500 znaków. Synteza działa lokalnie — tekst nie jest wysyłany do Internetu.
+        </small>
+        <button
+          class="btn btn-primary"
+          {% if not playback_enabled or playback_status.running %}disabled{% endif %}
+        >
+          Przeczytaj przez wzmacniacz
+        </button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="card border-0 service-card mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+      <div>
+        <h3 class="h5 mb-1">Biblioteka muzyki</h3>
+        <p class="text-secondary mb-0">
+          Własne pliki MP3/WAV i playlisty. Pliki są przechowywane prywatnie w katalogu instance.
+        </p>
+      </div>
+      <span class="badge text-bg-{{ 'success' if playback_enabled else 'warning' }} align-self-start">
+        {{ "Wyjście 3,5 mm gotowe" if playback_enabled else "Odtwarzanie wyłączone" }}
+      </span>
+    </div>
+
+    <form method="post" action="{{ url_for('school_services.upload_audio_track') }}" enctype="multipart/form-data" class="row g-2 mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4">
+        <input class="form-control" name="title" maxlength="160" placeholder="Tytuł (opcjonalnie)">
+      </div>
+      <div class="col-md-5">
+        <input class="form-control" type="file" name="audio_file" accept=".mp3,.wav,audio/mpeg,audio/wav" required>
+      </div>
+      <div class="col-md-3">
+        <button class="btn btn-primary w-100">Wgraj plik</button>
+      </div>
+      <div class="col-12 form-check ms-2">
+        <input class="form-check-input" type="checkbox" name="authorized" id="audio-authorized" required>
+        <label class="form-check-label small" for="audio-authorized">
+          Potwierdzam, że szkoła ma prawo do publicznego odtwarzania tego nagrania.
+        </label>
+      </div>
+      <div class="col-12 small text-secondary">Dozwolone formaty: MP3, WAV. Limit: {{ upload_limit_mb }} MB.</div>
+    </form>
+
+    <div class="row g-4">
+      <div class="col-12 col-xl-6">
+        <h4 class="h6">Wgrane utwory</h4>
+        {% for track in tracks %}
+        <div class="border rounded-3 p-3 mb-2">
+          <div class="d-flex justify-content-between gap-2">
+            <strong>{{ track.title }}</strong>
+            <span class="badge text-bg-secondary">{{ track.media_type|upper }}</span>
+          </div>
+          <div class="small text-secondary">
+            {{ track.original_filename }} · {{ '%.1f'|format(track.size_bytes / 1048576) }} MB
+          </div>
+        </div>
+        {% else %}
+        <p class="text-secondary">Biblioteka jest pusta.</p>
+        {% endfor %}
+      </div>
+
+      <div class="col-12 col-xl-6">
+        <h4 class="h6">Playlisty</h4>
+        <form method="post" action="{{ url_for('school_services.create_audio_playlist') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-8"><input class="form-control" name="name" maxlength="120" placeholder="Nazwa playlisty" required></div>
+          <div class="col-4"><button class="btn btn-outline-primary w-100">Utwórz</button></div>
+        </form>
+        {% for playlist in playlists %}
+        <div class="border rounded-3 p-3 mb-3">
+          <h5 class="h6">{{ playlist.name }}</h5>
+          <ol class="small mb-3">
+            {% for entry in playlist.entries %}
+            <li class="mb-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>{{ entry.track.title }} <span class="text-secondary">({{ entry.track.media_type|upper }})</span></span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Kolejność utworu">
+                  <form method="post" action="{{ url_for('school_services.move_playlist_entry', entry_id=entry.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="direction" value="up">
+                    <button class="btn btn-outline-secondary" title="Przesuń w górę">↑</button>
+                  </form>
+                  <form method="post" action="{{ url_for('school_services.move_playlist_entry', entry_id=entry.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="direction" value="down">
+                    <button class="btn btn-outline-secondary" title="Przesuń w dół">↓</button>
+                  </form>
+                  <form method="post" action="{{ url_for('school_services.remove_playlist_entry', entry_id=entry.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-danger" title="Usuń z playlisty">Usuń</button>
+                  </form>
+                </div>
+              </div>
+            </li>
+            {% else %}
+            <li class="text-secondary">Brak utworów.</li>
+            {% endfor %}
+          </ol>
+          {% if playback_enabled and playlist.entries %}
+          <form method="post" action="{{ url_for('school_services.play_audio_playlist', playlist_id=playlist.id) }}" class="mb-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-success w-100" {% if playback_status.running %}disabled{% endif %}>
+              Odtwórz przez wzmacniacz
+            </button>
+          </form>
+          {% endif %}
+          {% if tracks %}
+          <form method="post" action="{{ url_for('school_services.add_track_to_playlist', playlist_id=playlist.id) }}" class="row g-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-8">
+              <select class="form-select" name="track_id" required>
+                <option value="">Wybierz utwór</option>
+                {% for track in tracks %}<option value="{{ track.id }}">{{ track.title }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-4"><button class="btn btn-outline-secondary w-100">Dodaj</button></div>
+          </form>
+          {% endif %}
+        </div>
+        {% else %}
+        <p class="text-secondary">Nie utworzono jeszcze playlisty.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card border-0 service-card mb-4">
+  <div class="card-body p-4">
+    <h3 class="h5 mb-1">Radio internetowe</h3>
+    <p class="text-secondary">
+      Linki otwierają oficjalne odtwarzacze. SP2 ADMIN nie kopiuje ani nie retransmituje strumieni.
+    </p>
+    <div class="row g-3">
+      {% for source in radio_sources %}
+      <div class="col-12 col-lg-6">
+        <div class="border rounded-3 p-3 h-100">
+          <h4 class="h6">{{ source.name }}</h4>
+          <p class="small text-secondary">{{ source.description }}</p>
+          <a class="btn btn-outline-primary" href="{{ source.public_url }}" target="_blank" rel="noopener noreferrer">
+            Otwórz oficjalny odtwarzacz
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="card border-0 service-card mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div>
+        <h3 class="h5 mb-1">Dzisiaj: {{ today.label }}</h3>
+        <span class="badge text-bg-{{ day_styles[today.kind] }}">
+          Dzwonki {{ "aktywne" if today.bells else "wyłączone" }}
+        </span>
+        <span class="text-secondary ms-2">Plan: {{ today.schedule }}</span>
+      </div>
+      <div class="btn-group">
+        <a class="btn btn-outline-secondary" href="{{ url_for('school_services.radio', year=previous_month.year, month=previous_month.month) }}">←</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('school_services.radio') }}">Dzisiaj</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('school_services.radio', year=next_month.year, month=next_month.month) }}">→</a>
+      </div>
+    </div>
+    <h3 class="h5">{{ selected_month.strftime("%m.%Y") }}</h3>
+    <div class="table-responsive">
+      <table class="table align-middle text-center">
+        <thead><tr><th>Pon</th><th>Wt</th><th>Śr</th><th>Czw</th><th>Pt</th><th>Sob</th><th>Nd</th></tr></thead>
+        <tbody>
+        {% for week in weeks %}
+          <tr>
+          {% for day in week %}
+            <td style="min-width: 120px; height: 92px">
+            {% if day %}
+              <strong>{{ day.day.day }}</strong><br>
+              <span class="badge text-bg-{{ day_styles[day.kind] }}">{{ day.label }}</span>
+              <div class="small mt-1">{{ "Dzwonki" if day.bells else "Cisza" }}</div>
+            {% endif %}
+            </td>
+          {% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="card border-0 service-card mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+      <div>
+        <h3 class="h5 mb-1">Plany i godziny dzwonków</h3>
+        <p class="text-secondary mb-0">Przypisz dźwięki do godzin. Automat uruchamia je tylko w dniach wskazanych przez kalendarz.</p>
+        <span class="badge text-bg-{{ 'success' if bell_automation_enabled else 'secondary' }} mt-2">
+          Automatyczne dzwonki: {{ 'włączone' if bell_automation_enabled else 'wyłączone' }}
+        </span>
+      </div>
+      <div class="text-end">
+        {% if not today.bells %}
+          <span class="badge text-bg-secondary">Dzisiaj: cisza</span>
+        {% elif preview %}
+          <span class="badge text-bg-info">Następny: {{ preview.label }} · {{ preview.due_at.strftime("%H:%M") }}</span>
+        {% else %}
+          <span class="badge text-bg-warning">Brak kolejnego dzwonka w planie {{ today.schedule }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('school_services.create_bell_schedule') }}" class="row g-2 mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-8"><input class="form-control" name="name" maxlength="64" placeholder="Nazwa planu, np. standardowy" required></div>
+      <div class="col-md-4"><button class="btn btn-primary w-100">Dodaj plan</button></div>
+    </form>
+    <div class="row g-3">
+      {% for schedule in schedules %}
+      <div class="col-12 col-xl-6">
+        <div class="border rounded-3 p-3 h-100">
+          <h4 class="h6">{{ schedule.name }}</h4>
+          {% for event in schedule.events %}
+          <div class="border-bottom py-2">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+            <span><strong>{{ event.time_of_day.strftime("%H:%M") }}</strong> · {{ event.label }}<br>
+              <small class="text-secondary">Dźwięk: {{ event.audio_assignment.track.title if event.audio_assignment else 'nie przypisano' }}</small>
+            </span>
+            <form method="post" action="{{ url_for('school_services.toggle_bell_event', event_id=event.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-secondary">{{ "Wyłącz" if event.enabled else "Włącz" }}</button>
+            </form>
+            </div>
+            {% if tracks %}
+            <form method="post" action="{{ url_for('school_services.assign_bell_event_audio', event_id=event.id) }}" class="row g-2 mt-1">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="col-8"><select class="form-select form-select-sm" name="track_id" required>
+                <option value="">Wybierz dźwięk</option>
+                {% for track in tracks %}<option value="{{ track.id }}" {% if event.audio_assignment and event.audio_assignment.track_id == track.id %}selected{% endif %}>{{ track.title }}</option>{% endfor %}
+              </select></div>
+              <div class="col-4"><button class="btn btn-sm btn-outline-primary w-100">Przypisz</button></div>
+            </form>
+            {% endif %}
+          </div>
+          {% else %}<p class="small text-secondary">Plan nie ma jeszcze godzin.</p>{% endfor %}
+          <form method="post" action="{{ url_for('school_services.create_bell_event', schedule_id=schedule.id) }}" class="row g-2 mt-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-4"><input class="form-control" type="time" name="time_of_day" required></div>
+            <div class="col-5"><input class="form-control" name="label" maxlength="120" placeholder="Opis" required></div>
+            <div class="col-3"><button class="btn btn-outline-primary w-100">Dodaj</button></div>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12"><p class="text-secondary">Nie utworzono jeszcze planu. Dodaj pierwszy wariant bez zgadywania godzin lekcji.</p></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="row g-4">
+  <div class="col-12 col-xl-6">
+    <section class="card border-0 service-card h-100"><div class="card-body p-4">
+      <h3 class="h5 mb-3">Dodaj wyjątek</h3>
+      <form method="post" action="{{ url_for('school_services.create_radio_exception') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-12"><label class="form-label">Nazwa</label><input class="form-control" name="label" maxlength="160" required></div>
+          <div class="col-6"><label class="form-label">Od</label><input class="form-control" type="date" name="starts_on" required></div>
+          <div class="col-6"><label class="form-label">Do</label><input class="form-control" type="date" name="ends_on" required></div>
+          <div class="col-6"><label class="form-label">Rodzaj</label><select class="form-select" name="kind"><option value="break">Wolne od nauki</option><option value="special">Dzień specjalny</option><option value="school">Dzień nauki</option></select></div>
+          <div class="col-6"><label class="form-label">Plan</label><input class="form-control" name="schedule" maxlength="64" value="brak"></div>
+          <div class="col-6 form-check ms-2"><input class="form-check-input" type="checkbox" name="lessons" id="lessons"><label class="form-check-label" for="lessons">Lekcje</label></div>
+          <div class="col-5 form-check"><input class="form-check-input" type="checkbox" name="bells" id="bells"><label class="form-check-label" for="bells">Dzwonki</label></div>
+          <div class="col-12"><button class="btn btn-primary">Zapisz wyjątek</button></div>
+        </div>
+      </form>
+    </div></section>
+  </div>
+  <div class="col-12 col-xl-6">
+    <section class="card border-0 service-card h-100"><div class="card-body p-4">
+      <h3 class="h5 mb-3">Zapisane wyjątki</h3>
+      {% for item in exceptions %}
+      <div class="d-flex justify-content-between gap-3 border-bottom py-2">
+        <div><strong>{{ item.label }}</strong><div class="small text-secondary">{{ item.starts_on.strftime("%d.%m.%Y") }}–{{ item.ends_on.strftime("%d.%m.%Y") }} · {{ item.schedule }}</div></div>
+        <form method="post" action="{{ url_for('school_services.toggle_radio_exception', exception_id=item.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary">{{ "Wyłącz" if item.enabled else "Włącz" }}</button>
+        </form>
+      </div>
+      {% else %}<p class="text-secondary">Brak własnych wyjątków.</p>{% endfor %}
+    </div></section>
+  </div>
+</div>
+{% endblock %}

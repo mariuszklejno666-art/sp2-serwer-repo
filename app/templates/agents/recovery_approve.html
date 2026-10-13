@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Zatwierdź komputer — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <a href="{{ url_for('agents.index') }}" class="text-decoration-none">← Agenci Windows</a>
+    <section class="card shadow-sm mt-3" aria-labelledby="pairing-title">
+      <div class="card-body p-4 p-md-5">
+        <span class="badge text-bg-success mb-3">SP2 Serwis Domeny 2.0</span>
+        <h1 id="pairing-title" class="h2 mb-2">Zatwierdź komputer</h1>
+        <p class="text-secondary mb-4">
+          Porównaj dane poniżej z oknem programu uruchomionego na naprawianej stacji.
+        </p>
+
+        <dl class="row gy-2 mb-4">
+          <dt class="col-sm-4 text-secondary">Nazwa komputera</dt>
+          <dd class="col-sm-8 fw-semibold text-break">{{ pairing.hostname }}</dd>
+          <dt class="col-sm-4 text-secondary">UUID urządzenia</dt>
+          <dd class="col-sm-8 font-monospace text-break">{{ pairing.device_id }}</dd>
+          <dt class="col-sm-4 text-secondary">Identyfikator żądania</dt>
+          <dd class="col-sm-8 font-monospace text-break">{{ pairing.id }}</dd>
+        </dl>
+
+        {% if hardware %}
+        <div class="alert alert-info">
+          {% if registered_name %}
+          Rozpoznano urządzenie zarejestrowane jako <strong>{{ registered_name }}</strong>.
+          {% else %}
+          Nowe urządzenie. Otrzyma własną rejestrację i plan, także gdy inny komputer ma tę samą nazwę.
+          {% endif %}
+          <div class="mt-2">MAC: <span class="font-monospace">{{ hardware.mac_addresses | join(', ') or 'brak' }}</span></div>
+          Token programu naprawczego nie zmieni tokenu SP2 Agenta innego stanowiska.
+        </div>
+        {% endif %}
+
+        {% if pairing.approved_by %}
+        <div class="alert alert-success mb-0" role="status">
+          Komputer zatwierdzony. SP2 Serwis Domeny wykryje zatwierdzenie automatycznie
+          i sam pobierze token. Nie musisz wracać do programu ani klikać OK.
+        </div>
+        {% else %}
+        <div class="alert alert-info" role="note">
+          Logujesz się kontem panelu SP2 ADMIN. Nie wpisuj tutaj hasła administratora domeny.
+        </div>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" id="confirm-device"
+                   name="confirm" value="yes" required>
+            <label class="form-check-label" for="confirm-device">
+              To komputer, który teraz naprawiam; jego nazwa i UUID zgadzają się z programem.
+            </label>
+          </div>
+
+          {% if existing %}
+          <div class="alert alert-warning" role="alert">
+            Ten komputer jest już zarejestrowany. Wymiana tokenu unieważni poprzedni
+            token agenta. Po zatwierdzeniu zaktualizuj konfigurację SP2 Agenta.
+          </div>
+          <div class="form-check mb-4">
+            <input class="form-check-input" type="checkbox" id="replace-existing"
+                   name="replace_existing" value="yes" required>
+            <label class="form-check-label" for="replace-existing">
+              Potwierdzam wymianę tokenu istniejącego komputera.
+            </label>
+          </div>
+          {% endif %}
+
+          <button class="btn btn-primary w-100" type="submit">
+            Zatwierdź i wydaj token temu komputerowi
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+

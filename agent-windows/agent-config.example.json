@@ -1,0 +1,8 @@
+{"server_url":"https://sp2-admin.sp2.local","token":"WKLEJ_TEN_SAM_TOKEN_CO_W_ENV","interval_seconds":60,"verify_tls":true}
+{
+  "server_url": "https://sp2-admin.sp2.local",
+  "token": "WKLEJ_SP2_API_TOKEN_Z_PLIKU_ENV",
+  "room": "Sala 32",
+  "interval_seconds": 60,
+  "verify_tls": true
+}

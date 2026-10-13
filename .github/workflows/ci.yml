@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - domain-repair-v2
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.14"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest
+
+  windows-agent:
+    name: Windows agent validation
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: agent-windows/requirements.txt
+
+      - name: Install agent dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r agent-windows/requirements.txt
+
+      - name: Validate Python agent
+        shell: pwsh
+        run: |
+          python -m py_compile agent-windows/sp2_agent.py
+          python -c "import psutil, requests, win32serviceutil"
+
+      - name: Validate PowerShell deployment scripts
+        shell: pwsh
+        run: |
+          $paths = @(
+            "agent-windows/domain-repair/SP2-Serwis-Domeny.ps1",
+            "agent-windows/domain-repair/build.ps1",
+            "agent-windows/install-agent.ps1",
+            "agent-windows/migrate-entra-to-samba.ps1"
+          )
+          foreach ($relativePath in $paths) {
+            $tokens = $null
+            $errors = $null
+            $path = (Resolve-Path $relativePath).Path
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error "${relativePath}: $($_.Message)" }
+              exit 1
+            }
+          }
+
+      - name: Build and self-test domain recovery launcher
+        shell: powershell
+        run: |
+          & agent-windows/domain-repair/build.ps1
+          & agent-windows/domain-repair/SP2-Serwis-Domeny.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & agent-windows/domain-repair/test-authentication.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Separate process so the fake native test boundary cannot affect packaging.
+          powershell -NoProfile -File agent-windows/domain-repair/test-machine-account-recovery.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -File agent-windows/domain-repair/test-cancel-plan-before-start.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell -NoProfile -File agent-windows/domain-repair/test-local-channel-resolve.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload domain recovery package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SP2-Serwis-Domeny
+          path: agent-windows/domain-repair/dist/
+          if-no-files-found: error
+          retention-days: 7

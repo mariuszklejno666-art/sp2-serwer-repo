@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Użytkownik AD — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">{{ first_value(user, "displayName", first_value(user, "sAMAccountName")) }}</h1>
+    <div class="text-secondary">Konto AD: <strong>{{ first_value(user, "sAMAccountName") }}</strong></div>
+  </div>
+  <a class="btn btn-outline-light" href="{{ url_for('directory.users') }}">← Wróć</a>
+</div>
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm"><div class="card-body">
+      <h2 class="h5 mb-4">Dane konta</h2>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0"><tbody>
+        <tr><th style="width:220px">Login</th><td>{{ first_value(user,"sAMAccountName","—") }}</td></tr>
+        <tr><th>Imię i nazwisko</th><td>{{ first_value(user,"displayName","—") }}</td></tr>
+        <tr><th>Imię</th><td>{{ first_value(user,"givenName","—") }}</td></tr>
+        <tr><th>Nazwisko</th><td>{{ first_value(user,"sn","—") }}</td></tr>
+        <tr><th>E-mail</th><td>{{ first_value(user,"mail","—") }}</td></tr>
+        <tr><th>Telefon</th><td>{{ first_value(user,"telephoneNumber","—") }}</td></tr>
+        <tr><th>Dział</th><td>{{ first_value(user,"department","—") }}</td></tr>
+        <tr><th>Stanowisko</th><td>{{ first_value(user,"title","—") }}</td></tr>
+        <tr><th>Status</th><td>{% if account_enabled(user) %}<span class="badge text-bg-success">Aktywne</span>{% else %}<span class="badge text-bg-secondary">Wyłączone</span>{% endif %}</td></tr>
+        <tr><th>Ostatnie logowanie</th><td>{{ format_ad_datetime(user.get("lastLogonTimestamp")) }}</td></tr>
+        <tr><th>Ostatnia zmiana hasła</th><td>{{ format_ad_datetime(user.get("pwdLastSet")) }}</td></tr>
+        <tr><th>DN</th><td class="small text-break">{{ first_value(user,"distinguishedName","—") }}</td></tr>
+      </tbody></table></div>
+    </div></div>
+    <div class="card border-0 shadow-sm mt-4"><div class="card-body">
+      <h2 class="h5 mb-3">Operacje na koncie</h2>
+      {% if not can_write %}
+        <div class="alert alert-warning mb-0">Operacje dostępne wyłącznie dla administratora panelu.</div>
+      {% elif config.PREVIEW_DEMO_DATA %}
+        <div class="alert alert-info mb-0">Konto jest przykładowe. Operacje zapisu są zablokowane w podglądzie.</div>
+      {% elif not write_configured %}
+        <div class="alert alert-warning mb-0">Operacje zapisu są wyłączone — skonfiguruj konto LDAP do zapisu.</div>
+      {% else %}
+        <div class="d-flex flex-wrap gap-2">
+          {% if account_enabled(user) %}
+            <form method="post" action="{{ url_for('directory.account_action', username=first_value(user, 'sAMAccountName'), action='disable') }}">
+              {{ account_action_form.hidden_tag() }}
+              <button class="btn btn-outline-danger" onclick="return confirm('Wyłączyć konto {{ first_value(user, 'sAMAccountName') }}?')">Wyłącz konto</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('directory.account_action', username=first_value(user, 'sAMAccountName'), action='enable') }}">
+              {{ account_action_form.hidden_tag() }}
+              <button class="btn btn-success">Włącz konto</button>
+            </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('directory.account_action', username=first_value(user, 'sAMAccountName'), action='unlock') }}">
+            {{ account_action_form.hidden_tag() }}
+            <button class="btn btn-outline-warning">Odblokuj konto</button>
+          </form>
+        </div>
+      {% endif %}
+    </div></div>
+
+    <div class="card border-0 shadow-sm mt-4"><div class="card-body">
+      <h2 class="h5 mb-3">Grupy i jednostka OU</h2>
+      {% if directory_options_error %}<div class="alert alert-warning">{{ directory_options_error }}</div>{% endif %}
+      {% if can_write and write_configured %}
+        <form method="post" action="{{ url_for('directory.add_to_group', username=first_value(user, 'sAMAccountName')) }}" class="row g-2 align-items-end mb-4">
+          {{ group_form.hidden_tag() }}
+          <div class="col-md-8">{{ group_form.group_dn.label(class="form-label") }}{{ group_form.group_dn(class="form-select") }}</div>
+          <div class="col-md-4">{{ group_form.submit(class="btn btn-primary w-100", value="Dodaj do grupy") }}</div>
+        </form>
+        <form method="post" action="{{ url_for('directory.move_user', username=first_value(user, 'sAMAccountName')) }}" class="row g-2 align-items-end">
+          {{ move_form.hidden_tag() }}
+          <div class="col-md-8">{{ move_form.target_ou_dn.label(class="form-label") }}{{ move_form.target_ou_dn(class="form-select") }}</div>
+          <div class="col-md-4">{{ move_form.submit(class="btn btn-outline-primary w-100", onclick="return confirm('Przenieść użytkownika do wybranej OU?')") }}</div>
+        </form>
+      {% else %}
+        <div class="alert alert-info mb-0">{{ 'Przykładowe grupy i OU są dostępne wyłącznie do przeglądania.' if config.PREVIEW_DEMO_DATA else 'Zarządzanie grupami i OU wymaga konta administratora oraz konfiguracji zapisu LDAP.' }}</div>
+      {% endif %}
+    </div></div>
+
+    <div class="card border-0 shadow-sm mt-4"><div class="card-body">
+      <h2 class="h5 mb-3">Reset hasła</h2>
+      {% if not can_write %}
+        <div class="alert alert-warning mb-0">Operacja dostępna wyłącznie dla administratora panelu.</div>
+      {% elif config.PREVIEW_DEMO_DATA %}
+        <div class="alert alert-info mb-0">Reset hasła jest wyłączony w demonstracji.</div>
+      {% elif not write_configured %}
+        <div class="alert alert-warning mb-0">Operacje zapisu są wyłączone. Ustaw osobne konto serwisowe <code>LDAP_WRITE_BIND_DN</code> i <code>LDAP_WRITE_BIND_PASSWORD</code>.</div>
+      {% else %}
+        <form method="post" action="{{ url_for('directory.reset_password', username=first_value(user, 'sAMAccountName')) }}">
+          {{ reset_form.hidden_tag() }}
+          <div class="mb-3">{{ reset_form.new_password.label(class="form-label") }}{{ reset_form.new_password(class="form-control", autocomplete="new-password") }}</div>
+          <div class="mb-3">{{ reset_form.confirm_password.label(class="form-label") }}{{ reset_form.confirm_password(class="form-control", autocomplete="new-password") }}</div>
+          <div class="form-check mb-3">{{ reset_form.force_change(class="form-check-input") }}{{ reset_form.force_change.label(class="form-check-label") }}</div>
+          {{ reset_form.submit(class="btn btn-danger") }}
+        </form>
+      {% endif %}
+    </div></div>
+
+    <div class="card border-0 shadow-sm mt-4"><div class="card-body">
+      <h2 class="h5 mb-3">Zmiana nazwy i usunięcie konta</h2>
+      {% if not can_write %}
+        <div class="alert alert-warning mb-0">Operacje dostępne wyłącznie dla administratora panelu.</div>
+      {% elif config.PREVIEW_DEMO_DATA %}
+        <div class="alert alert-info mb-0">Zmiana i usunięcie konta są wyłączone w demonstracji.</div>
+      {% elif not write_configured %}
+        <div class="alert alert-warning mb-0">Operacje zapisu są wyłączone. Ustaw osobne konto serwisowe <code>LDAP_WRITE_BIND_DN</code> i <code>LDAP_WRITE_BIND_PASSWORD</code>.</div>
+      {% else %}
+        <form method="post" action="{{ url_for('directory.rename_user', username=first_value(user, 'sAMAccountName')) }}" class="row g-2 align-items-end mb-4">
+          {{ rename_form.hidden_tag() }}
+          <div class="col-md-8">{{ rename_form.new_username.label(class="form-label") }}{{ rename_form.new_username(class="form-control", autocomplete="off") }}
+            {% for message in rename_form.new_username.errors %}<div class="text-danger small">{{ message }}</div>{% endfor %}</div>
+          <div class="col-md-4">{{ rename_form.submit(class="btn btn-outline-primary w-100", onclick="return confirm('Zmienić login użytkownika " ~ first_value(user, 'sAMAccountName') ~ "?')") }}</div>
+        </form>
+        <form method="post" action="{{ url_for('directory.delete_user', username=first_value(user, 'sAMAccountName')) }}" class="row g-2 align-items-end" onsubmit="return confirm('Usunąć konto {{ first_value(user, 'sAMAccountName') }}? Tej operacji nie można cofnąć.')">
+          {{ delete_form.hidden_tag() }}
+          <div class="col-md-8">{{ delete_form.confirm_username.label(class="form-label") }}{{ delete_form.confirm_username(class="form-control", autocomplete="off", placeholder=first_value(user, 'sAMAccountName')) }}
+            {% for message in delete_form.confirm_username.errors %}<div class="text-danger small">{{ message }}</div>{% endfor %}</div>
+          <div class="col-md-4">{{ delete_form.submit(class="btn btn-outline-danger w-100") }}</div>
+        </form>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm"><div class="card-body">
+      <h2 class="h5 mb-3">Grupy</h2>
+      {% if groups %}<ul class="list-group list-group-flush">
+        {% for group_dn in groups %}<li class="list-group-item bg-transparent px-0 text-break">
+          <div class="d-flex justify-content-between gap-2 align-items-start">
+            <div><strong>{{ dn_common_name(group_dn) }}</strong><div class="small text-secondary">{{ group_dn }}</div></div>
+            {% if can_write and write_configured %}
+              <form method="post" action="{{ url_for('directory.remove_from_group', username=first_value(user, 'sAMAccountName')) }}">
+                {{ account_action_form.hidden_tag() }}<input type="hidden" name="group_dn" value="{{ group_dn }}">
+                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Usunąć użytkownika z grupy {{ dn_common_name(group_dn) }}?')">Usuń</button>
+              </form>
+            {% endif %}
+          </div>
+        </li>{% endfor %}
+      </ul>{% else %}<p class="text-secondary mb-0">Brak grup zwróconych przez LDAP.</p>{% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

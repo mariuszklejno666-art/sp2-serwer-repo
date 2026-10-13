@@ -1,0 +1,12 @@
+[Unit]
+Description=SP2 ADMIN - nocny raport testów
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=10min
+Unit=sp2-audit-tests.service
+
+[Install]
+WantedBy=timers.target
+

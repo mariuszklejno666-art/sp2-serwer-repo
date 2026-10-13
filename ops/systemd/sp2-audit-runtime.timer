@@ -1,0 +1,12 @@
+[Unit]
+Description=SP2 ADMIN - raport diagnostyczny co 5 minut
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=sp2-audit-runtime.service
+
+[Install]
+WantedBy=timers.target
+

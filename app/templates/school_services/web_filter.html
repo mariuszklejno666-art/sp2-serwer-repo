@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Blokowanie stron — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <span class="service-eyebrow">Ochrona komputerów uczniowskich</span>
+    <h2 class="mt-2 mb-1">Blokowanie stron</h2>
+    <p class="text-secondary mb-0">Reguły dla uczniów pracujących w salach 4, 7, 11 i 32.</p>
+  </div>
+  <span class="badge fs-6 {% if enforcement_enabled %}text-bg-success{% else %}text-bg-warning{% endif %}">
+    {% if enforcement_enabled %}Filtrowanie aktywne{% else %}Egzekwowanie wyłączone{% endif %}
+  </span>
+</div>
+
+{% if enforcement_enabled %}
+<div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <span>
+    Zapisanie albo zmiana reguły nie blokuje niczego automatycznie — kliknij „Zastosuj teraz”,
+    żeby wysłać aktualną listę domen do komputerów w odpowiednich salach (blokada przez plik hosts).
+  </span>
+  <form method="post" action="{{ url_for('school_services.apply_web_filter') }}" class="flex-shrink-0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-primary" type="submit">Zastosuj teraz</button>
+  </form>
+</div>
+{% else %}
+<div class="alert alert-warning">
+  Ten etap tylko zapisuje listę domen. Egzekwowanie jest wyłączone w konfiguracji serwera
+  (<code>WEB_FILTER_ENFORCEMENT_ENABLED</code>) — po włączeniu pojawi się tu przycisk
+  „Zastosuj teraz”, który wyśle regułę do komputerów (blokada przez plik hosts).
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-12 col-xl-4">
+    <form method="post" class="card service-card border-0">
+      <div class="card-body p-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <h3 class="h5 mb-3">Dodaj domenę</h3>
+        <label class="form-label" for="rule-label">Nazwa reguły</label>
+        <input class="form-control mb-3" id="rule-label" name="label"
+               maxlength="120" placeholder="np. Gry online">
+
+        <label class="form-label" for="rule-address">Link do strony</label>
+        <input class="form-control mb-3" id="rule-address" name="address"
+               required placeholder="https://przyklad.pl/gra">
+
+        <fieldset>
+          <legend class="form-label">Sale objęte regułą</legend>
+          <div class="d-flex flex-wrap gap-2 mb-4">
+            {% for room in filtered_rooms %}
+            <label class="room-choice">
+              <input type="checkbox" name="rooms" value="{{ room }}" checked>
+              <span>Sala {{ room }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <button class="btn btn-primary w-100" type="submit">Zapisz regułę</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <div class="card service-card border-0">
+      <div class="card-body p-0">
+        <div class="p-4 border-bottom border-secondary-subtle">
+          <h3 class="h5 mb-1">Zapisane reguły</h3>
+          <p class="text-secondary small mb-0">Blokowana będzie cała domena, nie tylko wklejona podstrona.</p>
+        </div>
+        {% if rules %}
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle mb-0">
+            <thead>
+              <tr><th>Nazwa</th><th>Domena</th><th>Sale</th><th>Stan</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for rule in rules %}
+              <tr>
+                <td>{{ rule.label }}</td>
+                <td><code>{{ rule.hostname }}</code></td>
+                <td>{{ rule.room_list | join(", ") }}</td>
+                <td>
+                  <span class="badge {% if rule.enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                    {% if rule.enabled %}Włączona{% else %}Wyłączona{% endif %}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <form method="post" action="{{ url_for('school_services.toggle_web_filter_rule', rule_id=rule.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-light" type="submit">
+                      {% if rule.enabled %}Wyłącz{% else %}Włącz{% endif %}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-secondary p-4 mb-0">Nie zapisano jeszcze żadnej domeny.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

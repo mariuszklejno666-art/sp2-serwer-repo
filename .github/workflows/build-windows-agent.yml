@@ -1,0 +1,73 @@
+name: Build Windows Agent
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "agent-windows/**"
+      - ".github/workflows/build-windows-agent.yml"
+
+# Touch 2026-08-10: trigger standalone agent build after zero-touch enrollment changes.
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: agent-windows/requirements.txt
+
+      - name: Build standalone EXE
+        shell: powershell
+        run: |
+          cd agent-windows
+          .\build-agent.ps1
+
+      - name: Build legacy upgrade bootstrap
+        shell: powershell
+        run: |
+          cd agent-windows
+          py -3 -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --onefile `
+            --name SP2AgentLegacyUpgrade `
+            --distpath legacy-dist `
+            --workpath legacy-build `
+            --add-data "dist\SP2Agent.exe;payload" `
+            legacy_upgrade_bootstrap.py
+
+      - name: Prepare deployment package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item agent-windows\dist\SP2Agent.exe package\SP2Agent.exe
+          Copy-Item agent-windows\install-standalone-agent.ps1 package\install-agent.ps1
+          Copy-Item agent-windows\deployment.example.json package\deployment.example.json
+          Copy-Item agent-windows\README.md package\README.md
+          Compress-Archive -Path package\* -DestinationPath SP2-Agent-Standalone.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SP2-Agent-Standalone
+          path: SP2-Agent-Standalone.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload legacy upgrade bootstrap
+        uses: actions/upload-artifact@v4
+        with:
+          name: SP2-Agent-Legacy-Upgrade
+          path: agent-windows/legacy-dist/SP2AgentLegacyUpgrade.exe
+          if-no-files-found: error
+          retention-days: 7

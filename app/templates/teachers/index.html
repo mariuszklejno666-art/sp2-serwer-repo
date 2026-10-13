@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Nauczyciele — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h2 class="h3 mb-1">Nauczyciele</h2>
+    <p class="text-secondary mb-0">
+      Konta z jednostki OU nauczycieli. Login konta jest niezależny od nazwy laptopa NAU-001…NAU-199.
+    </p>
+  </div>
+  <a class="btn btn-primary"
+     href="{{ url_for('directory.domain_enrollment', mode='teacher') }}">
+    Przygotuj laptop nauczyciela
+  </a>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+{% if not teacher_ou %}
+<div class="alert alert-warning">Nie skonfigurowano AD_TEACHER_USER_OU.</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+    <div class="text-secondary small">Wszyscy</div><div class="h3 mb-0">{{ records|length }}</div>
+  </div></div></div>
+  <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+    <div class="text-secondary small">Aktywne konta</div><div class="h3 text-success mb-0">{{ enabled }}</div>
+  </div></div></div>
+  <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+    <div class="text-secondary small">Wyłączone konta</div><div class="h3 text-secondary mb-0">{{ disabled }}</div>
+  </div></div></div>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-3">
+  <div class="card-body d-flex flex-wrap gap-2">
+    <input class="form-control flex-grow-1" style="min-width: 16rem" type="search"
+           name="q" value="{{ query }}" placeholder="Szukaj po loginie…">
+    <button class="btn btn-outline-primary" type="submit">Szukaj</button>
+    {% if query %}<a class="btn btn-outline-secondary" href="{{ url_for('teachers.index') }}">Wyczyść</a>{% endif %}
+  </div>
+</form>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Imię i nazwisko</th><th>Login</th><th>E-mail</th><th>Stan</th><th class="text-end">Działania</th></tr></thead>
+      <tbody>
+      {% for item in records %}
+      {% set username = first_value(item, 'sAMAccountName', '') %}
+      <tr>
+        <td class="fw-semibold">{{ first_value(item, 'displayName', username) }}</td>
+        <td class="font-monospace">{{ username }}</td>
+        <td>{{ first_value(item, 'mail') }}</td>
+        <td>{% if account_enabled(item) %}<span class="badge text-bg-success">Aktywne</span>{% else %}<span class="badge text-bg-secondary">Wyłączone</span>{% endif %}</td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{{ url_for('directory.user_details', username=username) }}">Konto</a>
+          <a class="btn btn-sm btn-outline-primary"
+             href="{{ url_for('directory.domain_enrollment', mode='teacher', teacher=username) }}">Laptop</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-secondary py-5">Brak nauczycieli spełniających kryteria.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ room_name }} — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <a class="small text-decoration-none" href="{{ url_for('rooms.index') }}">← Wszystkie sale</a>
+    <h2 class="mb-1 mt-2">{{ room_name }}</h2>
+    <p class="text-secondary mb-0">Graficzny widok stanowisk i operacje grupowe.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <span class="badge text-bg-success p-2">Online: {{ online_count }}</span>
+    <span class="badge text-bg-danger p-2">Offline: {{ offline_count }}</span>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('rooms.create_commands', room_name=room_name) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+      <span class="fw-semibold">Komputery w sali</span>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" id="selectAll" checked>
+        <label class="form-check-label" for="selectAll">Zaznacz wszystkie</label>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for agent in agents %}
+        {% set online = agent.is_online(threshold) %}
+        <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+          <article class="card h-100 shadow-sm {% if online %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                <input class="form-check-input agent-check" type="checkbox" name="agent_ids" value="{{ agent.id }}" checked aria-label="Wybierz {{ agent.hostname }}">
+                {% if online %}
+                <span class="badge text-bg-success">● Online</span>
+                {% else %}
+                <span class="badge text-bg-danger">● Offline</span>
+                {% endif %}
+              </div>
+
+              <h3 class="h5 mb-3">🖥 {{ agent.hostname }}</h3>
+              <dl class="row small mb-3">
+                <dt class="col-5 text-secondary">Użytkownik</dt>
+                <dd class="col-7 text-end text-break">{{ agent.username or '—' }}</dd>
+                <dt class="col-5 text-secondary">Adres IP</dt>
+                <dd class="col-7 text-end">{{ agent.primary_ip }}</dd>
+                <dt class="col-5 text-secondary">Model</dt>
+                <dd class="col-7 text-end text-break">{{ agent.model or agent.fqdn or '—' }}</dd>
+                <dt class="col-5 text-secondary">Agent</dt>
+                <dd class="col-7 text-end">{{ agent.agent_version or '—' }}</dd>
+                <dt class="col-5 text-secondary">Kontakt</dt>
+                <dd class="col-7 text-end">{{ agent.last_seen.strftime('%H:%M:%S') }}</dd>
+              </dl>
+
+              <a class="btn btn-sm btn-outline-primary w-100 mt-auto" href="{{ url_for('agents.details', agent_id=agent.id) }}">Otwórz komputer</a>
+            </div>
+          </article>
+        </div>
+        {% else %}
+        <div class="col-12"><div class="alert alert-info mb-0">Brak komputerów przypisanych do tej sali.</div></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% if can_manage %}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold">Operacje grupowe</div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap gap-2 mb-4">
+        <button class="btn btn-outline-primary" name="action" value="inventory">Odśwież inwentaryzację</button>
+        <button class="btn btn-outline-primary" name="action" value="gpupdate">GPUpdate /force</button>
+      </div>
+
+      <div class="border rounded p-3 mb-3">
+        <label class="form-label fw-semibold">Komunikat na ekrany</label>
+        <textarea class="form-control mb-2" name="message" maxlength="500" placeholder="Treść komunikatu"></textarea>
+        <button class="btn btn-primary" name="action" value="message">Wyślij komunikat</button>
+      </div>
+
+      <div class="border rounded p-3 mb-3">
+        <label class="form-label fw-semibold">Instalacja oprogramowania / aktualizacja agenta</label>
+        {% if catalog_error %}<div class="alert alert-warning">{{ catalog_error }}</div>{% endif %}
+        <div class="input-group">
+          <select class="form-select" name="package_id">
+            <option value="">Wybierz pakiet</option>
+            {% for package in software_packages %}
+            <option value="{{ package.id }}">{{ package.name }} {{ package.version }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-success" name="action" value="install_software">Zainstaluj</button>
+          <button class="btn btn-outline-success" name="action" value="self_update" onclick="return confirm('Zaktualizować agenta na zaznaczonych komputerach? Zrestartują się w trakcie.')">Zaktualizuj agenta</button>
+        </div>
+        <input type="hidden" name="confirm" value="yes">
+      </div>
+
+      <div class="border rounded p-3">
+        <p class="fw-semibold mb-2">Zasilanie</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-warning" name="action" value="restart" onclick="return confirm('Uruchomić ponownie wybrane komputery?')">Uruchom ponownie</button>
+          <button class="btn btn-danger" name="action" value="shutdown" onclick="return confirm('Wyłączyć wybrane komputery?')">Wyłącz komputery</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+<div class="card">
+  <div class="card-header fw-semibold">Ostatnie zadania w sali</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>ID</th><th>Komputer</th><th>Polecenie</th><th>Status</th><th>Utworzono</th></tr></thead>
+      <tbody>
+        {% for job in recent_jobs %}
+        <tr>
+          <td>#{{ job.id }}</td>
+          <td>{{ job.computer.hostname }}</td>
+          <td><code>{{ job.action }}</code></td>
+          <td><span class="badge {% if job.status == 'success' %}text-bg-success{% elif job.status == 'failed' %}text-bg-danger{% elif job.status == 'running' %}text-bg-primary{% else %}text-bg-secondary{% endif %}">{{ job.status }}</span></td>
+          <td>{{ job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-secondary py-4">Brak zadań.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+document.getElementById('selectAll')?.addEventListener('change', function () {
+  document.querySelectorAll('.agent-check').forEach((checkbox) => {
+    checkbox.checked = this.checked;
+  });
+});
+</script>
+{% endblock %}

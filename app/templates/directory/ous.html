@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Jednostki organizacyjne — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h2 class="h3 mb-1">Jednostki organizacyjne AD</h2>
+    <p class="text-secondary mb-0">Struktura klas, pracowni i pozostałych OU w domenie.</p>
+  </div>
+  <form class="d-flex gap-2" method="get">
+    <input class="form-control" type="search" name="q" value="{{ query }}" placeholder="Szukaj OU" aria-label="Szukaj OU">
+    <button class="btn btn-primary" type="submit">Szukaj</button>
+    {% if query %}<a class="btn btn-outline-secondary" href="{{ url_for('directory.organizational_units') }}">Wyczyść</a>{% endif %}
+  </form>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% elif records %}
+<div class="card border-secondary">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Jednostka / ścieżka</th>
+          <th>Opis</th>
+          <th class="text-center">Użytkownicy</th>
+          <th class="text-center">Komputery</th>
+          <th class="text-center">Pod-OU</th>
+          <th>Utworzono</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for item in records %}
+        {% set dn = first_value(item, 'distinguishedName', item.get('dn', '')) %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ first_value(item, 'ou') }}</div>
+            <div class="small text-secondary">{{ ou_path(dn) }}</div>
+          </td>
+          <td>{{ first_value(item, 'description') }}</td>
+          <td class="text-center"><span class="badge text-bg-primary">{{ item.counts.users }}</span></td>
+          <td class="text-center"><span class="badge text-bg-info">{{ item.counts.computers }}</span></td>
+          <td class="text-center"><span class="badge text-bg-secondary">{{ item.counts.ous }}</span></td>
+          <td>{{ format_ad_datetime(item.get('whenCreated')) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="small text-secondary mt-3">Liczby obejmują obiekty znajdujące się bezpośrednio w danej OU.</p>
+{% else %}
+<div class="alert alert-info">Nie znaleziono jednostek organizacyjnych.</div>
+{% endif %}
+{% endblock %}

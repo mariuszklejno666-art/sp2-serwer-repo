@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Pakiety oprogramowania — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <a href="{{ url_for('agents.index') }}" class="text-decoration-none">← Komputery</a>
+    <h2 class="mt-2 mb-1">Pakiety oprogramowania</h2>
+    <p class="text-secondary mb-0">
+      Wgraj główny instalator EXE/MSI. Jeżeli wymaga plików BIN, CAB, DAT, DLL
+      lub innych danych, dodaj je jako pliki towarzyszące. Samodzielny EXE/MSI
+      nie wymaga dodatkowych plików. Instalacja na wszystkich startuje partiami
+      po 10 komputerów co 2 minuty.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <form class="card card-body" method="post"
+          action="{{ url_for('agents.upload_software_package') }}"
+          enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h3 class="h5 mb-3">Dodaj pakiet</h3>
+
+      <label class="form-label" for="installer_file">Plik instalatora</label>
+      <label for="installer_file"
+             class="d-block text-center p-4 mb-3 rounded border border-2 border-dashed"
+             style="cursor:pointer;">
+        Przeciągnij tu plik .exe albo .msi<br>
+        <span class="text-secondary small">albo kliknij, żeby wybrać z dysku</span>
+      </label>
+      <input class="form-control mb-3" type="file" id="installer_file"
+             name="installer_file" accept=".exe,.msi" required>
+
+      <label class="form-label" for="support_files">
+        Pliki wymagane przez instalator <span class="text-secondary">(opcjonalnie)</span>
+      </label>
+      <input class="form-control mb-1" type="file" id="support_files"
+             name="support_files" multiple>
+      <div class="form-text mb-3">
+        Zaznacz wszystkie pliki, które muszą znajdować się obok instalatora,
+        np. BIN, CAB, DAT, DLL. Maksymalnie 128 plików, łącznie do 4 GB.
+      </div>
+
+      <label class="form-label">Identyfikator pakietu</label>
+      <input class="form-control mb-3" name="package_id" placeholder="np. firefox-esr"
+             pattern="[a-z0-9][a-z0-9._-]{0,63}" maxlength="64" required>
+
+      <label class="form-label">Nazwa</label>
+      <input class="form-control mb-3" name="name" maxlength="120" placeholder="np. Firefox ESR">
+
+      <label class="form-label">Wersja</label>
+      <input class="form-control mb-3" name="version" maxlength="60" placeholder="np. 128.1.0">
+
+      <label class="form-label">Opis</label>
+      <textarea class="form-control mb-3" name="description" maxlength="300" rows="2"></textarea>
+
+      <label class="form-label">Profil instalacji</label>
+      <select class="form-select mb-3" name="silent_profile">
+        {% for key, value in profiles.items() %}
+        <option value="{{ key }}">{{ value[0] }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="form-label">Argumenty instalacji cichej (po jednym w linii)</label>
+      <textarea class="form-control mb-3" name="arguments" rows="3"
+                placeholder="/S&#10;/norestart"></textarea>
+
+      <button class="btn btn-primary" type="submit">Wgraj pakiet</button>
+    </form>
+  </div>
+
+  <div class="col-lg-7">
+    {% if catalog_error %}
+    <div class="alert alert-danger">{{ catalog_error }}</div>
+    {% endif %}
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Pakiet</th><th>Typ</th><th>Rozmiar</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          {% for package in packages %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ package.name }} {{ package.version }}</div>
+                <div class="small text-secondary font-monospace">{{ package.id }}</div>
+                {% if package.file_names %}
+                <div class="small text-secondary">{{ package.file_names|join(', ') }}</div>
+                {% endif %}
+                {% if package.file_exists %}
+                <div class="small text-success">
+                  Kompletny pakiet — {{ package.file_count }} plik(ów)
+                </div>
+                {% else %}
+                <div class="small text-danger">Pakiet niekompletny — brakuje pliku na serwerze</div>
+                {% endif %}
+                {% if not package.silent_ready and package.purpose != 'agent' %}
+                <div class="small text-warning">Wybierz profil instalacji cichej.</div>
+                {% endif %}
+                <details class="mt-2">
+                  <summary>Parametry instalacji</summary>
+                  <form method="post"
+                        action="{{ url_for('agents.edit_software_profile', package_id=package.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <select class="form-select form-select-sm my-2" name="silent_profile">
+                      {% for key, value in profiles.items() %}
+                      <option value="{{ key }}" {% if package.silent_profile == key %}selected{% endif %}>
+                        {{ value[0] }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                    <textarea class="form-control form-control-sm mb-2"
+                              name="arguments" rows="3">{{ package.arguments|join('\n') }}</textarea>
+                    <button class="btn btn-sm btn-primary">Zapisz profil</button>
+                  </form>
+                </details>
+              </td>
+              <td>{{ 'EXE/MSI + BIN' if package.installer_type == 'zip' else package.installer_type|upper }}</td>
+              <td>{{ '%.1f MB'|format(package.file_size / 1048576) if package.file_size else '—' }}</td>
+              <td>
+                {% if package.enabled and package.file_exists %}
+                <span class="badge text-bg-success">Gotowy</span>
+                {% elif not package.file_exists %}
+                <span class="badge text-bg-danger">Niekompletny</span>
+                {% else %}
+                <span class="badge text-bg-secondary">Wyłączony</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <form class="d-inline" method="post"
+                      action="{{ url_for('agents.deploy_software_to_all', package_id=package.id) }}"
+                      onsubmit="return confirm('Zainstalować „' + {{ package.name|tojson }} + '” na WSZYSTKICH komputerach?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="confirm" value="yes">
+                  <button class="btn btn-outline-success btn-sm" type="submit"
+                          {% if not package.enabled or not package.file_exists or not package.silent_ready %}disabled{% endif %}>
+                    Zainstaluj na wszystkich
+                  </button>
+                </form>
+                <form class="d-inline" method="post"
+                      action="{{ url_for('agents.deploy_agent_update', package_id=package.id) }}"
+                      onsubmit="return confirm('Zaktualizować agenta tym pakietem na WSZYSTKICH komputerach (poza tymi już na tej wersji)? Zrestartują się w trakcie.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="confirm" value="yes">
+                  <button class="btn btn-outline-primary btn-sm" type="submit"
+                          {% if not package.enabled or not package.file_exists %}disabled{% endif %}>
+                    Zaktualizuj wszystkie agenty
+                  </button>
+                </form>
+                <form class="d-inline" method="post"
+                      action="{{ url_for('agents.toggle_software_package', package_id=package.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-outline-secondary btn-sm" type="submit">
+                    {{ 'Wyłącz' if package.enabled else 'Włącz' }}
+                  </button>
+                </form>
+                <form class="d-inline" method="post"
+                      action="{{ url_for('agents.delete_software_package', package_id=package.id) }}"
+                      onsubmit="return confirm('Usunąć pakiet „' + {{ package.name|tojson }} + '” wraz ze wszystkimi plikami?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-outline-danger btn-sm" type="submit">Usuń</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="text-center text-secondary py-5">Katalog jest pusty.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

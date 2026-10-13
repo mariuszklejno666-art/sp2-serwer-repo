@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Usługi szkoły — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="service-hero rounded-4 p-4 p-lg-5 mb-4">
+  <span class="service-eyebrow">Nowe centrum usług</span>
+  <h2 class="display-6 fw-semibold mt-2">Usługi szkoły</h2>
+  <p class="lead text-secondary mb-0">
+    Filtrowanie stron, radiowęzeł, monitoring i kontrola dysków sieciowych
+    w jednym miejscu.
+  </p>
+</section>
+
+<div class="row g-4">
+  {% for card in cards %}
+  <div class="col-12 col-md-6">
+    {% if card.available %}
+    <a class="text-decoration-none text-reset" href="{{ url_for(card.endpoint) }}">
+    {% endif %}
+      <article class="card service-card h-100 border-0">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start gap-3">
+            <div>
+              <h3 class="h4 mb-2">{{ card.title }}</h3>
+              <p class="text-secondary mb-0">{{ card.description }}</p>
+            </div>
+            <span class="badge rounded-pill {% if card.status == 'Aktywne' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+              {{ card.status }}
+            </span>
+          </div>
+          {% if not card.available %}
+          <p class="small text-warning mt-3 mb-0">Brak uprawnień do tego panelu.</p>
+          {% endif %}
+        </div>
+      </article>
+    {% if card.available %}</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="alert alert-info mt-4 mb-0">
+  Integracje wykonujące działania w sieci są domyślnie wyłączone.
+  Najpierw konfigurujemy i testujemy każdy moduł poza środowiskiem produkcyjnym.
+</div>
+{% endblock %}

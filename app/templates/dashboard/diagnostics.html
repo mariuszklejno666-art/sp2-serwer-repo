@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Diagnostyka — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="hero rounded-4 p-4 p-lg-5 mb-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-8">
+      <span class="badge text-bg-primary mb-3">SYSTEM</span>
+      <h2 class="display-6 fw-semibold">Diagnostyka SP2 ADMIN</h2>
+      <p class="lead text-secondary mb-0">
+        Te same kontrole, z których korzysta polecenie <code>flask doctor</code>.
+      </p>
+    </div>
+    <div class="col-lg-4 text-lg-end">
+      <a class="btn btn-outline-light"
+         href="{{ url_for('dashboard.diagnostics') }}">Uruchom ponownie</a>
+    </div>
+  </div>
+</section>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+  <strong>Diagnostyka przerwana:</strong> {{ error }}
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {% for check in checks %}
+  <div class="col-12 col-lg-6">
+    <article class="card stat-card h-100 border-0 shadow-sm">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <p class="text-uppercase small text-secondary fw-semibold mb-2">
+              {{ check.name | replace('_', ' ') }}
+            </p>
+            <p class="mb-0">{{ check.message }}</p>
+          </div>
+          {% if check.status == 'ok' %}
+          <span class="badge text-bg-success">OK</span>
+          {% elif check.status == 'warning' %}
+          <span class="badge text-bg-warning">UWAGA</span>
+          {% else %}
+          <span class="badge text-bg-secondary">INFO</span>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

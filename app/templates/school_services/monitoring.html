@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Monitoring — {{ config.APP_NAME }}{% endblock %}
+{% block content %}
+<section class="service-hero rounded-4 p-4 p-lg-5 mb-4">
+  <span class="service-eyebrow">Dostęp chroniony</span>
+  <h2 class="mt-2 mb-1">Monitoring</h2>
+  <p class="text-secondary mb-0">
+    Panel wyłącznie dla administratora, dyrektora i wicedyrektora.
+  </p>
+</section>
+
+<div class="alert alert-warning">
+  Obraz kamer nie jest jeszcze osadzony w przeglądarce. Dane logowania do rejestratora
+  nie są zapisywane w repozytorium — panel tylko sprawdza dostępność i otwiera
+  natywny interfejs webowy rejestratora w nowej karcie, logując to zdarzenie w audycie.
+</div>
+
+{% if nvr_checks %}
+<div class="row g-4 mb-4">
+  {% for nvr in nvr_checks %}
+  <div class="col-12 col-lg-6">
+    <article class="card service-card h-100 border-0">
+      <div class="card-body p-4">
+        <span class="badge {{ 'text-bg-success' if nvr.reachable else 'text-bg-danger' }} mb-3">
+          {{ 'Panel online' if nvr.reachable else 'Panel offline' }}
+        </span>
+        <h3 class="h5">{{ nvr.name }}</h3>
+        <p class="font-monospace mb-2">{{ nvr.host }}:{{ nvr.port }}</p>
+        <p class="text-secondary mb-3">{{ nvr.message }}</p>
+        <a class="btn btn-outline-primary btn-sm"
+           href="{{ url_for('school_services.open_monitoring_panel', name=nvr.name) }}"
+           target="_blank" rel="noopener">
+          Otwórz panel rejestratora
+        </a>
+        {% if snapshot_configured and nvr.name == snapshot_nvr_name %}
+        <div class="mt-3">
+          <img src="{{ url_for('school_services.monitoring_snapshot', name=nvr.name) }}"
+               alt="Migawka: {{ nvr.name }}" class="img-fluid rounded border">
+          <p class="text-secondary small mt-1 mb-0">
+            Kamera testowa. Odśwież stronę, żeby pobrać nową migawkę.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">
+  Nie skonfigurowano jeszcze rejestratorów (<code>MONITORING_NVR_ENDPOINTS</code>).
+</div>
+{% endif %}
+
+<article class="card service-card border-0">
+  <div class="card-body p-4">
+    <h3 class="h5">Kolejne kroki integracji</h3>
+    <ol class="text-secondary mb-0">
+      <li>Utworzone: sprawdzenie dostępności panelu i audytowane otwarcie w nowej karcie.</li>
+      <li>Utworzone: migawka JPEG osadzona w panelu — hasło konta podglądu zna tylko serwer.</li>
+      <li>Wymaga Twojego działania: konto tylko-do-podglądu na rejestratorze (patrz instrukcja niżej).</li>
+      <li>Na razie jedna kamera testowa (<code>MONITORING_SNAPSHOT_NVR_NAME</code>), bez szerszego udostępniania.</li>
+    </ol>
+  </div>
+</article>
+{% endblock %}
